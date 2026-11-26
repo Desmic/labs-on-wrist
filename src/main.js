@@ -208,7 +208,7 @@ async function startGL() {
       panelStage.style.opacity = k.toFixed(2);
       panelStage.style.pointerEvents = k > 0.5 ? "auto" : "none";
     }
-    world.tick(Math.min(0.05, deltaMs / 1000));
+    world.tick(Math.min(0.1, deltaMs / 1000), deltaMs / 1000);
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) ScrollTrigger.refresh(); });
 }

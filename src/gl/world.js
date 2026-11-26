@@ -36,7 +36,9 @@ const MOODS = {
 
 export function createWorld(canvas, labelHost, { lite }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, lite ? 1.25 : 1.75));
+  const baseDPR = Math.min(window.devicePixelRatio, lite ? 1.25 : 1.75);
+  let quality = 1;
+  renderer.setPixelRatio(baseDPR);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -201,7 +203,7 @@ export function createWorld(canvas, labelHost, { lite }) {
   scene.add(dust);
 
   /* ---------- post ---------- */
-  const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: lite ? 0 : 4 });
+  const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: lite ? 0 : 2 });
   const composer = new EffectComposer(renderer, rt);
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.6, 1.2);
@@ -289,6 +291,8 @@ export function createWorld(canvas, labelHost, { lite }) {
     const w = window.innerWidth, h = window.innerHeight;
     size = { w, h };
     mobile = w < 860;
+    renderer.setPixelRatio(baseDPR * quality);
+    composer.setPixelRatio(baseDPR * quality);
     renderer.setSize(w, h, false);
     composer.setSize(w, h);
     bloom.resolution.set(w / 2, h / 2);
@@ -298,15 +302,32 @@ export function createWorld(canvas, labelHost, { lite }) {
     if (mobile) camera.setViewOffset(w, h, 0, h * 0.24, w, h);
     else camera.setViewOffset(w, h, -w * 0.17, 0, w, h);
     camera.updateProjectionMatrix();
-    const pts = (h / Math.tan((camera.fov * Math.PI) / 360)) * 0.5;
+    const pts = (h * renderer.getPixelRatio() / Math.tan((camera.fov * Math.PI) / 360)) * 0.5;
     scene.traverse((o) => { if (o.material && o.material.uniforms && o.material.uniforms.uScale) o.material.uniforms.uScale.value = pts; });
   }
   window.addEventListener("resize", resize);
   resize();
 
+  /* adaptive resolution: keep frame time near 60 fps on integrated GPUs */
+  const ft = [];
+  let lastQ = 0;
+  function adapt(rawDt) {
+    if (document.hidden || rawDt > 0.25) return;
+    ft.push(rawDt);
+    if (ft.length < 50) return;
+    const avg = ft.reduce((a, b) => a + b, 0) / ft.length;
+    ft.length = 0;
+    if (time - lastQ < 1.2) return;
+    let q = quality;
+    if (avg > 1 / 46) q = Math.max(0.5, quality - (avg > 1 / 30 ? 0.2 : 0.1));
+    else if (avg < 1 / 58 && quality < 1) q = Math.min(1, quality + 0.05);
+    if (q !== quality) { quality = q; lastQ = time; resize(); }
+  }
+
   const tmpC = new THREE.Color();
-  function tick(dt) {
+  function tick(dt, rawDt = dt) {
     time += dt;
+    adapt(rawDt);
     const shot = (stations[active] || stations[0])(prog);
     if (mobile && active !== 0) shot.pos.sub(shot.look).multiplyScalar(1.35).add(shot.look);
     const m = MOODS[shot.mood];
