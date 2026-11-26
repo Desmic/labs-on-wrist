@@ -146,6 +146,7 @@ export function mountLab() {
       v = "Not enough, and adding more wrist sensors won't fix it. The information isn't in these signals. The honest answer is: get the scan.";
     } else v = "Not enough yet. The system should say “I can't tell” rather than guess.";
     verdictEl.textContent = v;
+    window.dispatchEvent(new CustomEvent("lab:change", { detail: { chosen: [...chosen], utility: u } }));
   }
 
   optBtn.addEventListener("click", () => {

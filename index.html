@@ -11,6 +11,8 @@
   <meta property="og:description" content="A doctor sees moments. A person lives everything in between. An affordable wearable and shared health timeline, built carefully and in the open." />
 </head>
 <body data-tone="day">
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <div id="labels" aria-hidden="true"></div>
   <a class="skip" href="#short">Skip to the summary</a>
 
   <header class="bar">
@@ -64,8 +66,8 @@
     <section class="chapter" id="ch1" data-scene="day" data-tone="day" aria-labelledby="ch1-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 1</p>
-        <h2 id="ch1-title">A life like any other</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 1</p>
+        <h2 id="ch1-title">A life like any other</h2></header>
         <div class="step"><p>This is Aarav. He's 29 and works as a structural engineer. He makes chai on the balcony before work, visits building sites, and plays cricket with friends on Thursday evenings.</p></div>
         <div class="step"><p>He has plans. A promotion he's working towards. A trip to the hills with his sister in the spring.</p></div>
         <div class="step"><p class="narration">Like everyone else, he has a life he wants to live.</p></div>
@@ -76,8 +78,8 @@
     <section class="chapter" id="ch2" data-scene="night" data-tone="night" aria-labelledby="ch2-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 2</p>
-        <h2 id="ch2-title">Living with uncertainty</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 2</p>
+        <h2 id="ch2-title">Living with uncertainty</h2></header>
         <div class="step"><p>Aarav has epilepsy. Most days, nothing happens. But some mornings he wakes up tired, with aching muscles and a sore tongue, and no memory of the night.</p></div>
         <div class="step"><p>Did something happen? He lives alone. Nobody saw. He goes to work anyway, a little less sure of himself.</p></div>
         <div class="step"><p>Not everyone with epilepsy lives like this. Every person's experience is different. But not knowing is something many people share.</p></div>
@@ -89,8 +91,8 @@
     <section class="chapter" id="ch3" data-scene="clinic" data-tone="day" aria-labelledby="ch3-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 3</p>
-        <h2 id="ch3-title">The missing story</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 3</p>
+        <h2 id="ch3-title">The missing story</h2></header>
         <div class="step"><p>Every few months, Aarav sees his neurologist. She asks careful questions. How many events since last time? How has he been sleeping? Any side effects since the dose change?</p></div>
         <div class="step"><p>He tries to remember. "Maybe two? I think I slept okay." Three months of life, squeezed into a twenty-minute conversation.</p></div>
         <div class="step"><p>This isn't a failing of doctors. It's a limit of the information that reaches them.</p></div>
@@ -102,8 +104,8 @@
     <section class="chapter" id="ch4" data-scene="fragments" data-tone="night" aria-labelledby="ch4-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 4</p>
-        <h2 id="ch4-title">Fragments</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 4</p>
+        <h2 id="ch4-title">Fragments</h2></header>
         <div class="step"><p>The story does exist, but in pieces. A prescription slip. An EEG report from March. A note on his phone: "felt strange on the bus." A sleep app he stopped opening. A message from his mother: "you sounded confused this morning."</p></div>
         <div class="step"><p>Each piece holds part of the picture. None of them are connected, and none of them are in the room when decisions are made.</p></div>
         <div class="step"><p>Putting things side by side in time doesn't prove that one caused another. But it helps the right questions get asked.</p></div>
@@ -115,8 +117,8 @@
     <section class="chapter" id="ch5" data-scene="wear" data-tone="day" aria-labelledby="ch5-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 5</p>
-        <h2 id="ch5-title">A different approach</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 5</p>
+        <h2 id="ch5-title">A different approach</h2></header>
         <div class="step"><p>Same morning. Same balcony, same chai. This time Aarav wears a simple band on his wrist.</p></div>
         <div class="step"><p>Quietly, it keeps a record: how he moved, his pulse, when he slept. When he feels something odd, he taps the band or adds a note in his own words.</p></div>
         <div class="step"><p>The record isn't perfect. There are gaps when the band was charging or he forgot to wear it. We show those gaps rather than hide them.</p></div>
@@ -128,8 +130,8 @@
     <section class="chapter" id="ch6" data-scene="device" data-tone="night" aria-labelledby="ch6-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 6</p>
-        <h2 id="ch6-title">Making the invisible measurable</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 6</p>
+        <h2 id="ch6-title">Making the invisible measurable</h2></header>
         <div class="step"><p>Inside the band: a motion sensor that feels movement and rotation, an optical sensor that watches tiny changes in blood flow under the skin, a skin-temperature sensor, and possibly a sensor for skin conductance. Plus a small processor, memory, Bluetooth, a battery, a vibration motor and a big physical SOS button.</p></div>
         <div class="step">
           <p>It's important to be clear about what a wrist device can and can't know.</p>
@@ -147,12 +149,12 @@
     <section class="chapter" id="ch7" data-scene="layers" data-tone="night" aria-labelledby="ch7-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 7</p>
-        <h2 id="ch7-title">The whole person</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 7</p>
+        <h2 id="ch7-title">The whole person</h2></header>
         <div class="step"><p class="narration">The human body does not work as a collection of separate parts.</p></div>
         <div class="step"><p>Sleep affects seizures. Medication affects sleep. Stress shows up in pulse and in mood. So the record is organised around the person over time, not around one organ or one specialist.</p></div>
         <div class="step"><p>Some layers come from the band, some from Aarav himself, some from his doctors. Each one keeps track of where it came from and how sure we are about it.</p></div>
-        <div class="step"><p>Turn the layers on and off. Shaded stripes are times with no data. There's no single "health score". A number like that would hide more than it shows.</p></div>
+        <div class="step"><p>Turn the layers on and off. Gaps are times with no data. There's no single "health score". A number like that would hide more than it shows.</p><div class="ring-toggles" id="ring-toggles" role="group" aria-label="Show or hide layers" hidden></div></div>
       </div>
     </section>
 
@@ -160,8 +162,8 @@
     <section class="chapter" id="ch8" data-scene="loop" data-tone="day" aria-labelledby="ch8-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 8</p>
-        <h2 id="ch8-title">Checking against the real thing</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 8</p>
+        <h2 id="ch8-title">Checking against the real thing</h2></header>
         <div class="step"><p>A cheap sensor is only useful if we know how well it agrees with the tests doctors trust. So we compare them side by side, at the same moment.</p></div>
         <div class="step"><p>Pulse from the band against an ECG. Movement events against video-EEG recordings in hospital. Sleep timing against a sleep lab. Each comparison answers one narrow question.</p></div>
         <div class="step"><p>Then we test on people the system has never seen, because a model that only works on the people it learned from isn't useful. What we learn feeds back into the next version of the hardware.</p></div>
@@ -172,8 +174,8 @@
     <!-- Chapter 9 -->
     <section class="chapter chapter--flow" id="ch9" data-tone="night" aria-labelledby="ch9-title">
       <div class="flow">
-        <p class="chapter__num">Chapter 9</p>
-        <h2 id="ch9-title">Labs on the wrist</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 9</p>
+        <h2 id="ch9-title">Labs on the wrist</h2></header>
         <p class="flow__lede">Hospitals measure a lot: blood panels, scans, brain recordings. But a specific decision often depends on a much smaller part of that information. Desmic's founding question is whether a few cheap, continuous measurements can preserve enough of it, for one clearly defined question at a time.</p>
         <p>It's not about putting an MRI scanner in a watch. For some questions a wrist band may be enough. For others, the information simply isn't there, and the honest answer is "get the scan".</p>
 
@@ -206,11 +208,11 @@
     </section>
 
     <!-- Chapter 10 -->
-    <section class="chapter" id="ch10" data-scene="appointment" data-tone="day" aria-labelledby="ch10-title">
+    <section class="chapter" id="ch10" data-panel data-scene="appointment" data-tone="day" aria-labelledby="ch10-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 10</p>
-        <h2 id="ch10-title">The next appointment</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 10</p>
+        <h2 id="ch10-title">The next appointment</h2></header>
         <div class="step"><p>Same clinic, same doctor, same twenty minutes. This time Aarav has chosen to share his timeline with her.</p></div>
         <div class="step"><p>She can see two possible night-time events the band flagged, marked as unconfirmed. Four days when the band wasn't worn. Shorter sleep after the dose change. And Aarav's own notes, in his words.</p></div>
         <div class="step"><p>She still decides what it means. The band doesn't diagnose anything. Aarav controls who sees his record and for how long.</p></div>
@@ -222,8 +224,8 @@
     <section class="chapter" id="ch11" data-scene="many" data-tone="night" aria-labelledby="ch11-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 11</p>
-        <h2 id="ch11-title">Beyond epilepsy</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 11</p>
+        <h2 id="ch11-title">Beyond epilepsy</h2></header>
         <div class="step"><p>Many people live with health that changes between visits: older adults at risk of falls, children whose parents worry at night, neurodivergent people who want support with routines and sensory overload, and people managing long-term conditions.</p></div>
         <div class="step">
           <p>We're doing this in order, and we'll say clearly what stage each part is at.</p>
@@ -241,8 +243,8 @@
     <section class="chapter" id="ch12" data-scene="close" data-tone="day" aria-labelledby="ch12-title">
       <div class="chapter__stage"><div class="stage" data-stage></div></div>
       <div class="chapter__text">
-        <p class="chapter__num">Chapter 12</p>
-        <h2 id="ch12-title">Why we build</h2>
+        <header class="chapter__head"><p class="chapter__num">Chapter 12</p>
+        <h2 id="ch12-title">Why we build</h2></header>
         <div class="step"><p>Back on the balcony. Chai. A Thursday match later. The band is there, but it isn't the point.</p></div>
         <div class="step"><blockquote class="closing"><p>The future of healthcare should give us more freedom to live, not more reasons to think about being ill.</p></blockquote></div>
         <div class="step"><p>The original vision and research ideas behind this project come from <strong>Desmic (Kumar Shashank)</strong>. We're looking for clinicians, researchers, engineers and people with lived experience who want to help build it well.</p></div>

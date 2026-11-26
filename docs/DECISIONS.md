@@ -27,6 +27,15 @@ Vite + vanilla JavaScript + SVG. Self-hosted fonts via Fontsource (Literata for 
 
 No flashing, strobing, or rapid luminance changes. Background tone changes ease over 1.2 s. No scroll hijacking. Reduced motion means static mode.
 
+## D5 — v2: cinematic 3D (founder feedback, 26 Nov 2026)
+
+The founder asked for the most ambitious animated, scroll-driven experience current web tech allows, inspired by Fern and LEMMiNO. v2 keeps the "one continuous line" idea but makes it a physical glowing thread in a dark, foggy 3D world:
+
+- Fern: miniature diorama rooms with faceless clay mannequins, warm key light through windows, the same rooms revisited (morning, night, wearing the band, sunset).
+- LEMMiNO: dark atmosphere, drifting dust, film grain and vignette, slow camera moves, large centred chapter title cards.
+- Stack: Three.js (r187), Lenis, GSAP ScrollTrigger + SplitText. All geometry is procedural; no external assets.
+- Safety kept: no flashing or strobing; bloom is steady; grain amplitude is low; reading mode and the SVG fallback remain.
+
 ## Owed work (from the master brief)
 
 - Full Phase 0: 20+ reference matrix with live inspection and measurements.

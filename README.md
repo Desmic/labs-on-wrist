@@ -16,9 +16,11 @@ npm run build    # production build into dist/
 
 ## How it's built
 
-- **Vite + vanilla JavaScript + SVG.** No animation library.
-- **One scroll controller** (`src/main.js`) computes each chapter's progress (0 to 1) and calls that chapter's scene. Scenes (`src/scenes.js`) are pure functions of progress, so scrolling backwards or jumping chapters always works.
-- **Static reading mode** turns off all scroll animation. It's on automatically for people who've asked their device for reduced motion, and there's a toggle in the top bar.
+- **Three.js world** (`src/gl/`): one persistent WebGL scene. A glowing life thread connects miniature diorama sets (Aarav's apartment, the clinic), an exploded wearable, a particle body with data rings, the calibration loop, labs-on-the-wrist particle streams and a field of lives. Faceless clay mannequins, shadows, bloom, film grain and vignette, inspired by Fern and LEMMiNO documentaries.
+- **Camera direction:** each section of the page maps to a "station" with a camera shot that is a function of scroll progress; the camera eases between shots, so moving between chapters is a fly-through.
+- **Lenis** smooth scrolling and **GSAP ScrollTrigger + SplitText** for chapter-title and text reveals.
+- **Illustrated SVG version** (`src/scenes.js`) is used for the reading mode and as the fallback when WebGL 2 isn't available.
+- **Reading mode** turns off all animation. It's on automatically for people who've asked their device for reduced motion, and there's a toggle in the top bar.
 - **Labs-on-the-wrist experiment** (`src/lab.js`) uses illustrative, made-up numbers only.
 - Fonts: Literata and Schibsted Grotesk, self-hosted via Fontsource.
 
