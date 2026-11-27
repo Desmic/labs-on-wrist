@@ -3,6 +3,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { FXAAPass } from "three/addons/postprocessing/FXAAPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
@@ -210,20 +211,25 @@ export function createWorld(canvas, labelHost, { lite }) {
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.6, 1.2);
   composer.addPass(bloom);
-  composer.addPass(new OutputPass());
-  const grade = new ShaderPass({
-    uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uGrain: { value: 0.035 }, uVig: { value: 0.9 } },
-    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-    fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uGrain; uniform float uVig; varying vec2 vUv;
-      float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
-      void main(){ vec4 c = texture2D(tDiffuse, vUv);
-        vec2 q = vUv - 0.5; float v = smoothstep(0.85, 0.2, length(q*vec2(1.0,0.85))*uVig);
-        c.rgb *= mix(0.55, 1.0, v);
-        float n = h(vUv*vec2(1920.,1080.) + floor(uTime*12.0)) - 0.5;
-        c.rgb += n * uGrain;
-        gl_FragColor = c; }`,
-  });
-  composer.addPass(grade);
+  // Tone mapping, colour space, vignette and grain in ONE full-screen pass (a separate grade pass cost ~4 ms on
+  // integrated graphics). The grade runs after the sRGB conversion, as before.
+  const output = new OutputPass();
+  Object.assign(output.uniforms, { uTime: { value: 0 }, uGrain: { value: 0.035 }, uVig: { value: 0.9 } });
+  output.material.fragmentShader = output.material.fragmentShader
+    .replace("uniform sampler2D tDiffuse;", `uniform sampler2D tDiffuse; uniform float uTime; uniform float uGrain; uniform float uVig;
+      float gh(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }`)
+    .replace(/\}\s*$/, `
+      vec2 q = vUv - 0.5; float vg = smoothstep(0.85, 0.2, length(q*vec2(1.0,0.85))*uVig);
+      gl_FragColor.rgb *= mix(0.55, 1.0, vg);
+      gl_FragColor.rgb += (gh(vUv*vec2(1920.,1080.) + floor(uTime*12.0)) - 0.5) * uGrain;
+    }`);
+  output.material.needsUpdate = true;
+  composer.addPass(output);
+  const grade = { uniforms: output.uniforms };
+  // Edge smoothing for when multisampling is switched off on slow GPUs (see adapt())
+  const fxaa = new FXAAPass();
+  fxaa.enabled = false;
+  composer.addPass(fxaa);
 
   /* ---------- shots ---------- */
   const T = (o) => o; // readability
@@ -439,6 +445,10 @@ export function createWorld(canvas, labelHost, { lite }) {
   // several fast windows in a row, never within 6 s of a drop, and never back to a level that was just too slow.
   const ft = [];
   let lastQ = -10, fastRuns = 0, ceiling = 1;
+  function setMSAA(n) {
+    [composer.renderTarget1, composer.renderTarget2].forEach((t) => { t.samples = n; t.dispose(); });
+    fxaa.enabled = n === 0 && !lite;
+  }
   function adapt(rawDt) {
     if (document.hidden || rawDt > 0.25) return;
     ft.push(rawDt);
@@ -447,7 +457,12 @@ export function createWorld(canvas, labelHost, { lite }) {
     const med = sorted[sorted.length >> 1]; // median ignores one-off hitches (GC, tab switches)
     ft.length = 0;
     let q = quality;
-    if (med > 1 / 45 && time - lastQ > 1.5) {
+    if (med > 1 / 45 && time - lastQ > 1.5 && composer.renderTarget1.samples > 0) {
+      // first rung: multisampling is the most expensive thing on integrated GPUs (~40 % of the frame); swap it for FXAA
+      setMSAA(0);
+      lastQ = time; fastRuns = 0;
+      return;
+    } else if (med > 1 / 45 && time - lastQ > 1.5) {
       q = Math.max(0.5, quality - (med > 1 / 30 ? 0.2 : 0.1));
       ceiling = quality; // that level was too slow
       fastRuns = 0;
@@ -703,9 +718,9 @@ export function createWorld(canvas, labelHost, { lite }) {
       quality: (q) => { quality = q; resize(); },
       shadows: (on) => { key.castShadow = on; },
       bloom: (on) => { bloom.enabled = on; },
-      grade: (on) => { grade.enabled = on; },
-      msaa: (n) => { [composer.renderTarget1, composer.renderTarget2].forEach((t) => { t.samples = n; t.dispose(); }); },
-      state: () => ({ quality, shadows: key.castShadow, bloom: bloom.enabled, grade: grade.enabled, msaa: composer.renderTarget1.samples }),
+      grade: (on) => { output.uniforms.uGrain.value = on ? 0.035 : 0; output.uniforms.uVig.value = on ? 0.9 : 0; },
+      msaa: (n) => setMSAA(n),
+      state: () => ({ quality, shadows: key.castShadow, bloom: bloom.enabled, grain: output.uniforms.uGrain.value, msaa: composer.renderTarget1.samples, fxaa: fxaa.enabled }),
     };
     // world positions of every bone of every visible figure, plus camera and quality: used by the jitter test
     window.__bones = () => {
