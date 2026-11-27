@@ -14,21 +14,90 @@ import { clayMat } from "./kit.js";
  * Feet at y = 0, faces +z, about 1.78 m tall.
  */
 
-let base = null;
-const additive = {};
-export function loadHumanAsset(url) {
+const bases = {}; // figure kind -> loaded glTF (meshes + skeleton)
+let animGltf = null; // shared Mixamo clips (idle, walk, gestures) on X Bot's skeleton, kept unquantized
+export function loadHumanAssets(figures, animUrl) {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
-  return loader.loadAsync(url).then((g) => {
-    base = g;
-    ["agree", "headShake", "sad_pose"].forEach((n) => {
-      const c = g.animations.find((a) => a.name === n);
-      if (c) additive[n] = THREE.AnimationUtils.makeClipAdditive(c.clone());
-    });
-    return g;
-  });
+  return Promise.all([
+    loader.loadAsync(animUrl).then((a) => (animGltf = a)),
+    ...Object.entries(figures).map(([k, url]) => loader.loadAsync(url).then((g) => (bases[k] = g))),
+  ]);
 }
-export const humanReady = () => !!base;
+
+/* ---- retargeting ----
+ * The clips were made on X Bot. Other Mixamo characters share bone names but not units or joint axes,
+ * so the clips are re-baked per character: at every frame each bone gets the same rotation AWAY FROM THE T-POSE
+ * (in world space) as on X Bot, expressed in that character's own joint frames. Hip travel is scaled by hip height.
+ * Both rigs must be in a T-pose at rest, which Mixamo downloads are. */
+const strip = (n) => n.replace(/^mixamorig\d*:?/, "");
+function boneMap(root) {
+  const m = {};
+  root.traverse((o) => { if (o.isBone || /^mixamorig/.test(o.name)) m[strip(o.name)] = o; });
+  return m;
+}
+function restWorld(map) {
+  const q = {};
+  Object.values(map)[0].parent.updateWorldMatrix(true, true);
+  for (const [n, b] of Object.entries(map)) q[n] = b.getWorldQuaternion(new THREE.Quaternion());
+  return q;
+}
+function retargetClips(kind) {
+  const src = SkeletonUtils.clone(animGltf.scene);
+  const S = boneMap(src);
+  const T = boneMap(bases[kind].scene);
+  const sRest = restWorld(S), tRest = restWorld(T);
+  const sHips0 = S.Hips.position.clone(), tHips0 = T.Hips.position.clone();
+  const hipScale = tHips0.y / sHips0.y;
+  // target bones, parents first
+  const order = [];
+  T.Hips.traverse((o) => { const n = strip(o.name); if (S[n]) order.push(n); });
+  const tParentRest = T.Hips.parent.getWorldQuaternion(new THREE.Quaternion());
+  const mixer = new THREE.AnimationMixer(src);
+  const out = {};
+  const q = new THREE.Quaternion(), d = new THREE.Quaternion(), w = {}, inv = new THREE.Quaternion();
+  for (const clip of animGltf.animations) {
+    mixer.stopAllAction();
+    const act = mixer.clipAction(clip);
+    act.play();
+    const fps = 30, n = Math.max(2, Math.round(clip.duration * fps) + 1);
+    const times = new Float32Array(n);
+    const rot = {}; order.forEach((b) => (rot[b] = new Float32Array(n * 4)));
+    const pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const t = Math.min(clip.duration, i / fps);
+      times[i] = t;
+      act.time = t; mixer.update(0);
+      src.updateMatrixWorld(true);
+      for (const b of order) {
+        S[b].getWorldQuaternion(q);
+        d.copy(q).multiply(inv.copy(sRest[b]).invert()); // world-space change from rest on X Bot
+        w[b] = d.clone().multiply(tRest[b]); // same change applied to the target's rest
+        const pw = T[b] === T.Hips ? tParentRest : w[strip(T[b].parent.name)];
+        q.copy(pw).invert().multiply(w[b]);
+        q.toArray(rot[b], i * 4);
+      }
+      const p = S.Hips.position;
+      pos[i * 3] = tHips0.x + (p.x - sHips0.x) * hipScale;
+      pos[i * 3 + 1] = tHips0.y + (p.y - sHips0.y) * hipScale;
+      pos[i * 3 + 2] = tHips0.z + (p.z - sHips0.z) * hipScale;
+    }
+    const tracks = order.map((b) => new THREE.QuaternionKeyframeTrack(`${T[b].name}.quaternion`, times, rot[b]));
+    tracks.push(new THREE.VectorKeyframeTrack(`${T.Hips.name}.position`, times, pos));
+    out[clip.name] = new THREE.AnimationClip(clip.name, clip.duration, tracks);
+  }
+  mixer.stopAllAction();
+  return out;
+}
+const clipCache = {};
+function clipsFor(kind) {
+  if (clipCache[kind]) return clipCache[kind];
+  const raw = kind === "xbot" ? Object.fromEntries(animGltf.animations.map((c) => [c.name, c])) : retargetClips(kind);
+  const out = {};
+  for (const [n, c] of Object.entries(raw)) out[n] = ["agree", "headShake", "sad_pose"].includes(n) ? THREE.AnimationUtils.makeClipAdditive(c.clone()) : c;
+  return (clipCache[kind] = out);
+}
+export const humanReady = () => !!animGltf;
 
 /* Directions in the figure's frame: x = figure's left, y = up, z = forward. */
 const N = (x, y, z) => new THREE.Vector3(x, y, z).normalize();
@@ -77,8 +146,11 @@ const ORDER = [
 ];
 const PIVOT = 0.95; // lying down rotates about the hips, not the feet
 
-export function makeHuman({ color = 0xc2b29e, joint = 0x8d8478, pose = "stand", speed = 0.7, build = "m" } = {}) {
-  if (!base) throw new Error("human asset not loaded");
+/* palette: { skin, top, bottom, shoes, hair } for figures with clothing meshes (named Body, Hoodie, Pants, Sneakers, Hair, Beard) */
+const PART = { Body: "skin", Hoodie: "top", Pants: "bottom", Sneakers: "shoes", Hair: "hair", Beard: "hair" };
+export function makeHuman({ seatLift = 0, kind = "xbot", color = 0xc2b29e, joint = 0x8d8478, palette = null, pose = "stand", speed = 0.7, build = "m" } = {}) {
+  const base = bases[kind];
+  if (!base || !animGltf) throw new Error("human asset not loaded");
   const root = new THREE.Group();
   const holder = new THREE.Group();
   root.add(holder);
@@ -89,7 +161,9 @@ export function makeHuman({ color = 0xc2b29e, joint = 0x8d8478, pose = "stand", 
   const joints = clayMat(joint, 0.6);
   model.traverse((o) => {
     if (o.isMesh) {
-      o.material = /joint/i.test(o.material?.name || "") ? joints : surf;
+      const part = palette && (PART[(o.name || "").replace(/^Ch\d+_|_\d+$/g, "")] || PART[o.parent && o.parent.name.replace(/^Ch\d+_/, "")]);
+      if (part) o.material = clayMat(palette[part], part === "hair" ? 0.95 : part === "skin" ? 0.7 : 0.85);
+      else o.material = /joint/i.test(o.material?.name || "") ? joints : surf;
       o.castShadow = true;
       o.receiveShadow = true;
       o.frustumCulled = false;
@@ -107,7 +181,7 @@ export function makeHuman({ color = 0xc2b29e, joint = 0x8d8478, pose = "stand", 
   model.traverse((o) => { if (o.isBone) bones[o.name.replace(/^mixamorig:?/, "")] = o; });
 
   // broader shoulders, flatter chest, narrower hips for a male build; children get the inverse scale
-  if (build === "m" && bones.Spine2) {
+  if (kind === "xbot" && build === "m" && bones.Spine2) {
     const sc = new THREE.Vector3(1.1, 1, 0.8);
     bones.Spine2.scale.copy(sc);
     bones.Spine2.children.forEach((c) => c.isBone && c.scale.set(1 / sc.x, 1 / sc.y, 1 / sc.z));
@@ -119,7 +193,8 @@ export function makeHuman({ color = 0xc2b29e, joint = 0x8d8478, pose = "stand", 
   }
 
   const mixer = new THREE.AnimationMixer(model);
-  const clip = (n) => base.animations.find((a) => a.name === n);
+  const C = clipsFor(kind);
+  const clip = (n) => C[n];
   const idle = mixer.clipAction(clip("idle"));
   idle.play();
   idle.time = Math.random() * idle.getClip().duration;
@@ -127,8 +202,8 @@ export function makeHuman({ color = 0xc2b29e, joint = 0x8d8478, pose = "stand", 
   const walk = clip("walk") ? mixer.clipAction(clip("walk")) : null;
   if (walk) { walk.play(); walk.paused = true; walk.setEffectiveWeight(0); }
   const gest = {};
-  Object.entries(additive).forEach(([n, c]) => {
-    const a = mixer.clipAction(c);
+  ["agree", "headShake", "sad_pose"].filter((n) => C[n]).forEach((n) => {
+    const a = mixer.clipAction(C[n]);
     a.play(); a.paused = true; a.setEffectiveWeight(0);
     gest[n] = a;
   });
@@ -168,7 +243,9 @@ export function makeHuman({ color = 0xc2b29e, joint = 0x8d8478, pose = "stand", 
       // drop is in metres; convert to the skeleton's own units (Mixamo rigs are in centimetres)
       bones.Hips.parent.getWorldScale(vt);
       root.getWorldScale(va);
-      const drop = ((A.hipsDrop || 0) * (1 - k) + (B.hipsDrop || 0) * k) / (vt.y / va.y);
+      // seatLift: thicker thighs or longer shins need the hips to stop a little higher
+      const dA = A.hipsDrop ? A.hipsDrop - seatLift : 0, dB = B.hipsDrop ? B.hipsDrop - seatLift : 0;
+      const drop = (dA * (1 - k) + dB * k) / (vt.y / va.y);
       bones.Hips.position.x *= 0.15;
       bones.Hips.position.z *= 0.15;
       bones.Hips.position.y = Math.min(bones.Hips.position.y, hipsRest ? hipsRest.y : 0) - drop;

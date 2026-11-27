@@ -233,12 +233,12 @@ export function wear(stage) {
 
 /* ---------------- Ch6: exploded device ---------------- */
 const LAYERS = [
-  { name: "Cover and SOS button", sub: "Press and hold for help", kind: "direct" },
-  { name: "Vibration motor", sub: "Alerts you can feel", kind: "parts" },
-  { name: "Processor, memory, Bluetooth", sub: "Works offline, syncs to the phone", kind: "parts" },
-  { name: "Battery", sub: "Aim: days between charges", kind: "parts" },
-  { name: "Motion sensor", sub: "Movement and rotation", kind: "direct" },
-  { name: "Optical and skin sensors", sub: "Blood-volume changes, skin temperature", kind: "direct" },
+  { name: "SOS button", sub: "Fixed from day one: help at a press", kind: "direct" },
+  { name: "Feedback", sub: "Vibration you can feel", kind: "parts" },
+  { name: "Processor and memory", sub: "Works offline, syncs to the phone", kind: "parts" },
+  { name: "Power", sub: "Days between charges", kind: "parts" },
+  { name: "Sensing layer", sub: "What goes here is decided by experiments", kind: "direct" },
+  { name: "Skin contact", sub: "Candidate sensors under test", kind: "direct" },
 ];
 
 function slab(g, cx, cy, w, dpt, t, cls) {
@@ -383,7 +383,7 @@ const LOOP = [
   ["Compare", "Pulse vs ECG. Movement events vs video-EEG. Sleep vs a sleep lab"],
   ["Calibrate", "Adjust the model for one narrow, defined question"],
   ["Validate", "Test on people the system has never seen"],
-  ["Improve", "Add useful sensors, remove ones that don't help"],
+  ["Improve", "Better hardware and models, version by version"],
 ];
 
 export function loop(stage) {

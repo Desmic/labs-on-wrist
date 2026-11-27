@@ -56,7 +56,7 @@
         </div>
         <div>
           <dt>The big research question</dt>
-          <dd>Can a small, cheap set of sensors carry enough information to answer specific questions that normally need expensive hospital tests? Sometimes yes, sometimes no. We want to find out which is which, honestly.</dd>
+          <dd>How much of what a hospital lab learns about a body can be learned from things a person simply wears? We have a process for collapsing lab equipment into a small set of data points and biomarkers, and it decides what hardware we build. Some questions will always need the hospital, and we'll say so.</dd>
         </div>
       </dl>
       <p class="short__note">This is an early-stage concept and research programme. Nothing here is a medical device or a diagnosis. Aarav, the person in this story, is fictional, and every chart on this site uses made-up data.</p>
@@ -132,16 +132,17 @@
       <div class="chapter__text">
         <header class="chapter__head"><p class="chapter__num">Chapter 6</p>
         <h2 id="ch6-title">Making the invisible measurable</h2></header>
-        <div class="step"><p>Inside the band: a motion sensor that feels movement and rotation, an optical sensor that watches tiny changes in blood flow under the skin, a skin-temperature sensor, and possibly a sensor for skin conductance. Plus a small processor, memory, Bluetooth, a battery, a vibration motor and a big physical SOS button.</p></div>
+        <div class="step"><p>We haven't fixed what goes inside the band, and that's deliberate. The aim is lab-like insight from something a person can wear: on the wrist first, and elsewhere on the body where it helps, almost always without needles.</p></div>
+        <div class="step"><p>Different sensors notice different things: movement, the pulse under the skin, temperature, the skin's electrical response, breathing, and more. Which ones earn a place, and where on the body they sit, is decided by experiments, not by guesswork.</p></div>
         <div class="step">
-          <p>It's important to be clear about what a wrist device can and can't know.</p>
+          <p>Whatever we build, we'll be clear about what it can and can't know.</p>
           <dl class="know">
-            <div class="know__row know__row--direct"><dt>Measures directly</dt><dd>Movement, rotation, changes in skin blood volume, skin temperature, a button press.</dd></div>
-            <div class="know__row know__row--estimate"><dt>Estimates</dt><dd>Pulse rate, sleep timing, activity, and candidate events such as a possible fall.</dd></div>
-            <div class="know__row know__row--cannot"><dt>Cannot know</dt><dd>Brain activity, blood chemistry, what an MRI shows, or a diagnosis.</dd></div>
+            <div class="know__row know__row--direct"><dt>Measured on the body</dt><dd>Signals a sensor picks up directly, like movement, pulse or temperature.</dd></div>
+            <div class="know__row know__row--estimate"><dt>Estimated from patterns</dt><dd>Things worked out from those signals over time, such as sleep, or a possible fall.</dd></div>
+            <div class="know__row know__row--cannot"><dt>Still needs the hospital</dt><dd>Some things may never leave the clinic. When that's the answer, we say so.</dd></div>
           </dl>
         </div>
-        <div class="step"><p>The first prototype keeps it simple: motion sensor, SOS button, vibration and a phone link. Other sensors are added only if testing shows they're worth their cost and battery.</p></div>
+        <div class="step"><p>One part is fixed from the start: safety. Whatever else the hardware becomes, it has a physical SOS button and fall alerts that work without the internet.</p></div>
       </div>
     </section>
 
@@ -176,34 +177,10 @@
       <div class="flow">
         <header class="chapter__head"><p class="chapter__num">Chapter 9</p>
         <h2 id="ch9-title">Labs on the wrist</h2></header>
-        <p class="flow__lede">Hospitals measure a lot: blood panels, scans, brain recordings. But a specific decision often depends on a much smaller part of that information. Desmic's founding question is whether a few cheap, continuous measurements can preserve enough of it, for one clearly defined question at a time.</p>
-        <p>It's not about putting an MRI scanner in a watch. For some questions a wrist band may be enough. For others, the information simply isn't there, and the honest answer is "get the scan".</p>
-
-        <div class="lab" id="lab">
-          <div class="lab__tasks" role="radiogroup" aria-label="Choose a question">
-            <!-- filled by JS -->
-          </div>
-          <div class="lab__body">
-            <fieldset class="lab__sensors">
-              <legend>Measurements to include</legend>
-              <div id="lab-sensors"></div>
-            </fieldset>
-            <div class="lab__result" aria-live="polite">
-              <div class="lab__meter" id="lab-meter"></div>
-              <p class="lab__verdict" id="lab-verdict"></p>
-              <p class="lab__cost" id="lab-cost"></p>
-              <button class="btn" id="lab-optimise" type="button">Find the cheapest set that's enough</button>
-            </div>
-          </div>
-          <p class="lab__note">Every number in this experiment is made up to illustrate the idea. These are not real accuracy figures or prices.</p>
-        </div>
-
-        <div class="formula">
-          <p>In research terms, for each clinical question <i>T</i> we look for the set of measurements <i>S</i> with the lowest cost that still keeps the error below a threshold a clinician agrees is safe:</p>
-          <p class="formula__eq" aria-label="S star equals the subset S of available measurements F that minimises cost C of S, subject to the validated error R for task T being at most epsilon T"><var>S</var>* = arg min<sub><var>S</var> ⊆ <var>F</var></sub> <var>C</var>(<var>S</var>)&ensp; subject to&ensp; <var>R</var><sub><var>T</var></sub>(<var>f</var><sub><var>S</var></sub>) ≤ ε<sub><var>T</var></sub></p>
-          <p>Cost includes money, battery, comfort and false alarms, not just the price of a sensor. If no affordable set meets the threshold, the system must say "I can't tell" and point back to proper clinical testing.</p>
-        </div>
-        <p class="narration">How little must we measure to understand enough?</p>
+        <p class="flow__lede">Hospitals learn about a body with a lot of equipment: blood panels, heart and brain recordings, sleep studies, scans. Most of it is expensive, happens only now and then, and stays in the hospital.</p>
+        <p>We've developed a process for collapsing that equipment into a much smaller set of data points and biomarkers: the signals that carry what a specific clinical question needs. Those signals then decide what our hardware has to measure, and where on the body.</p>
+        <p>The goal is lab-like insight a person can wear every day, mostly without needles, checked against the real tests before anyone relies on it. Some questions will always need the hospital, and when that's the answer, we'll say so.</p>
+        <p class="narration">What if more of the lab could come home with you?</p>
       </div>
     </section>
 
@@ -258,7 +235,7 @@
         <li class="first__item"><strong>Learning from open data.</strong> Using published research datasets to test whether wearable heart-rate patterns add anything beyond simple baselines for spotting higher-risk periods.</li>
         <li class="first__item"><strong>A plain-language safety picture.</strong> A small pilot that helps adults with epilepsy see which well-established safety risks apply to them, so they can raise them with their doctor.</li>
         <li class="first__item"><strong>Today's watches and phones as a test bench.</strong> With people's consent, using devices they already own to learn which signals our low-cost band actually needs.</li>
-        <li class="first__item"><strong>Finding the smallest useful set.</strong> Taking sensors away one at a time to see what each really adds, before anything goes onto a circuit board.</li>
+        <li class="first__item"><strong>Choosing the hardware.</strong> Turning what these experiments show into decisions about which sensors our own device needs, and where on the body they go.</li>
       </ul>
       <p class="first__note">None of this involves triggering seizures or changing anyone's treatment. Studies with participants begin only after ethics approval.</p>
     </section>
@@ -283,7 +260,7 @@
           <h3>What we're testing</h3>
           <ul class="claims">
             <li>Whether a simple wrist device and shared timeline make clinic conversations better, without adding work for doctors.</li>
-            <li>Which reduced sets of sensors are good enough for which specific clinical questions, and which questions they can't answer.</li>
+            <li>Which lab measurements can be carried by signals from wearable sensors for specific clinical questions, and which can't.</li>
             <li>Whether personal baselines help spot meaningful change in one person over time.</li>
             <li>How to design alerts that caregivers can trust, with false alarms kept low enough to live with.</li>
           </ul>

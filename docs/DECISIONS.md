@@ -38,10 +38,19 @@ The founder asked for the most ambitious animated, scroll-driven experience curr
 
 ## D6 — Rigged figures and scroll-driven acting (27 Nov 2026)
 
-- Capsule mannequins replaced by a rigged faceless mannequin (Mixamo "X Bot" via the three.js examples), re-coloured to the clay palette. A faceless segmented mannequin fits the Fern-style miniature; fully textured Mixamo characters (real faces and clothes, e.g. "Remy") were checked and rejected because they clash with the clay sets. Mixamo's male "Y Bot" is the preferred upgrade and drops in by replacing `public/models/xbot.glb` (needs a Mixamo sign-in to download).
+- Capsule mannequins replaced by a rigged faceless mannequin (Mixamo "X Bot" via the three.js examples), re-coloured to the clay palette. A faceless segmented mannequin fits the Fern-style miniature; fully textured Mixamo characters (real faces and clothes, e.g. "Remy") were checked and rejected because they clash with the clay sets. (Superseded by D7.)
 - Every action is driven by scroll position, not time, so it reverses exactly: walk with chai (ch1), wake and sit up on the bed edge (ch2), head shake and nods (ch3, ch10), checking the band (ch5), a sip at the window (ch12). Breathing (idle) keeps running underneath.
 - Poses aim limbs at directions in the figure's own frame instead of hand-tuned bone angles.
 - Verification is now measured, not just eyeballed: `qa/verify.py` steps every chapter at ten scroll positions on desktop and mobile, samples the skinned surface of every figure (`?debug`), reports points inside furniture, feet off the floor, 3D labels over story text and console errors, and writes contact sheets.
+
+## D7 — Real people instead of mannequins, and why the figures vibrated (27 Nov 2026)
+
+- The vibration was measured, not guessed. With the scroll held still, the whole figure jumped about 11 mm between two heights every few frames. Cause: compressing the model file had quantized the animation, rounding the idle sway to two values. Animations are now stored unquantized (`anims.glb`); after the fix the largest frame-to-frame bone step while still is under 1 mm.
+- `qa/motion.py` makes this a standing test: it freezes the page clock (`?debug` exposes `__freeze`, `__step`, `__scrollTo`, `__bones`), steps fixed 1/60 s frames, and reports per-bone acceleration (vibration), sudden jumps while scrubbing (pops) and per-pixel flicker that alternates frame to frame (shimmer), with heatmaps.
+- Aarav is now Mixamo's "Adam" (beard, hoodie, joggers), coloured flat in the site palette instead of photo textures, to keep the Fern-style look. Remy was considered: technically fine, but a blond surfer in cargo shorts doesn't read as Aarav. Other Mixamo candidates kept on file: "Chad" (scrubs and mask) for a clinician; "Roth" or "Kate" for a female doctor.
+- Clips are retargeted per character at load: each bone gets the same rotation away from the T-pose as on X Bot, in the new character's own joint frames, with hip travel scaled to hip height. Any Mixamo character can be dropped in this way.
+- Seat heights are per character (`seatLift`): Adam needs 4.5 cm more than X Bot; the patient sits 5 cm further back so his knees clear the desk. Checked with the furniture intersection test.
+- Shimmer: the shadow camera now snaps to whole shadow-map texels, and adaptive resolution only climbs back after several fast windows (and never to a level that was just too slow), so resolution no longer pumps.
 
 ## Owed work (from the master brief)
 

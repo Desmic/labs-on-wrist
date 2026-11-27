@@ -148,12 +148,12 @@ export function fragments() {
 
 /* ---------------- The wearable, with exploded view ---------------- */
 const LAYERS = [
-  ["Cover and SOS button", "Press and hold for help"],
-  ["Vibration motor", "Alerts you can feel"],
-  ["Processor, memory, Bluetooth", "Works offline, syncs to the phone"],
-  ["Battery", "Aim: days between charges"],
-  ["Motion sensor", "Movement and rotation"],
-  ["Optical and skin sensors", "Blood-volume changes, skin temperature"],
+  ["SOS button", "Fixed from day one: help at a press"],
+  ["Feedback", "Vibration you can feel"],
+  ["Processor and memory", "Works offline, syncs to the phone"],
+  ["Power", "Days between charges"],
+  ["Sensing layer", "What goes here is decided by experiments"],
+  ["Skin contact", "Candidate sensors under test"],
 ];
 
 export function wearable() {
@@ -341,7 +341,7 @@ export const LOOP = [
   ["Compare", "Pulse vs ECG. Movement events vs video-EEG. Sleep vs a sleep lab"],
   ["Calibrate", "Adjust the model for one narrow, defined question"],
   ["Validate", "Test on people the system has never seen"],
-  ["Improve", "Add useful sensors, remove ones that don't help"],
+  ["Improve", "Better hardware and models, version by version"],
 ];
 
 export function loopRing() {
@@ -388,16 +388,16 @@ export function loopRing() {
 
 /* ---------------- Labs on the wrist streams (chapter 9) ---------------- */
 export const SOURCES = [
-  ["motion", "Motion sensor", 1],
-  ["pulse", "Optical pulse", 2],
-  ["temp", "Skin temperature", 1],
-  ["eda", "Skin conductance", 2],
-  ["ecg", "Chest ECG patch", 6],
-  ["eeg", "Behind-the-ear EEG", 12],
-  ["blood", "Blood test", 25],
-  ["mri", "MRI scan", 400],
+  ["blood", "Blood tests", 25],
+  ["ecg", "Heart recording", 6],
+  ["eeg", "Brain recording", 12],
+  ["sleep", "Sleep study", 30],
+  ["breath", "Breathing tests", 8],
+  ["mri", "Scans", 400],
 ];
 
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+const smoothstep = (x) => x * x * (3 - 2 * x);
 export function labStreams(lite) {
   const g = new THREE.Group();
   const target = new THREE.Vector3(0, -0.2, 0);
@@ -406,11 +406,12 @@ export function labStreams(lite) {
   core.position.copy(target);
   g.add(core);
   const srcs = SOURCES.map(([id, name, cost], i) => {
-    const a = Math.PI * (0.08 + (i / (SOURCES.length - 1)) * 0.84);
+    // fan over the right and top only: on desktop the story text occupies the left of the screen
+    const a = Math.PI * (0.04 + (i / (SOURCES.length - 1)) * 0.6);
     const R = 6.5;
     const pos = new THREE.Vector3(Math.cos(a) * R, Math.sin(a) * R * 0.55 + 0.6, -Math.sin(a) * 2.5);
     const size = 0.16 + Math.log10(cost + 1) * 0.32;
-    const hospital = id === "blood" || id === "mri";
+    const hospital = true;
     const s = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 3), new THREE.MeshStandardMaterial({ color: hospital ? 0xd7d4cc : 0x6fa9a2, roughness: 0.4, metalness: 0.1, emissive: hospital ? 0x221d14 : 0x0b2422 }));
     s.position.copy(pos);
     g.add(s);
@@ -437,10 +438,29 @@ export function labStreams(lite) {
     g.add(pts);
     return { id, name, s, mat, on: 0, want: 0, pos };
   });
+  // the handful of signals that come out the other side
+  const signals = [];
+  for (let i = 0; i < 4; i++) {
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.075, 2), glowMat(COL.amber, 3));
+    m.userData.a = (i / 4) * Math.PI * 2;
+    g.add(m);
+    signals.push(m);
+  }
   return {
     group: g,
     srcs,
     core,
+    signals,
+    // k: 0 → streams off, 1 → every instrument has flowed in and the few signals are lit
+    progress(k, time) {
+      srcs.forEach((s, i) => (s.want = smoothstep(clamp01((k - i * 0.07) / 0.3))));
+      const lit = smoothstep(clamp01((k - 0.55) / 0.3));
+      signals.forEach((m) => {
+        const a = m.userData.a + time * 0.35;
+        m.position.set(target.x + Math.cos(a) * 0.45, target.y + Math.sin(a * 2) * 0.04, target.z + Math.sin(a) * 0.45);
+        m.scale.setScalar(Math.max(0.001, lit));
+      });
+    },
     set(chosen) { srcs.forEach((s) => (s.want = chosen.has(s.id) ? 1 : 0)); },
     update(dt) { srcs.forEach((s) => { s.on += (s.want - s.on) * Math.min(1, dt * 3); s.mat.uniforms.uOn.value = s.on; s.s.scale.setScalar(0.7 + 0.3 * s.on); }); },
   };

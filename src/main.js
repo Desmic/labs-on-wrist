@@ -1,6 +1,5 @@
 import "./styles.css";
 import { SCENES, hero } from "./scenes.js";
-import { mountLab } from "./lab.js";
 import { clamp } from "./svg.js";
 
 const html = document.documentElement;
@@ -81,7 +80,6 @@ if (mobile) {
   });
 }
 
-mountLab();
 
 /* ---- Scroll state, shared by every mode ---- */
 function sectionProgress(r, vh) {
@@ -165,7 +163,6 @@ async function startGL() {
     b.addEventListener("click", () => b.setAttribute("aria-pressed", String(world.toggleRing(i))));
     rt.appendChild(b);
   });
-  window.addEventListener("lab:change", (e) => world.setLab(e.detail.chosen));
 
   /* smooth scrolling */
   const lenis = new Lenis({ lerp: 0.085, wheelMultiplier: 0.9 });
@@ -217,7 +214,7 @@ async function startGL() {
       .to(el, { opacity: 1, duration: 0.35 })
       .to(el, { opacity: 0, ease: "power1.in", duration: 0.35 });
   });
-  gsap.utils.toArray(".short__grid > div, .claims li, .principles li, .lab, .formula, .flow > p:not(.narration), .first__item").forEach((el) => {
+  gsap.utils.toArray(".short__grid > div, .claims li, .principles li, .flow > p:not(.narration), .first__item").forEach((el) => {
     gsap.from(el, { opacity: 0, y: 24, duration: 1.0, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 90%", toggleActions: "play none none reverse" } });
   });
 
@@ -228,7 +225,7 @@ async function startGL() {
   let first = true;
   const snapAlways = new URLSearchParams(location.search).has("snap");
   gsap.ticker.lagSmoothing(0);
-  gsap.ticker.add((time, deltaMs) => {
+  const loop = (time, deltaMs) => {
     lenis.raf(time * 1000);
     const { cur, p, chapterIdx, vh } = readScroll();
     // how much of the screen a chapter title currently occupies (0..1)
@@ -241,7 +238,7 @@ async function startGL() {
     // phones: the top edge of whatever story text is on screen, so 3D labels can keep clear of it
     let top = Infinity;
     if (mobile) {
-      if (!cur.el._blocks) cur.el._blocks = [...cur.el.querySelectorAll(".step > *, .flow > p, .lab, .formula, .chapter__head")];
+      if (!cur.el._blocks) cur.el._blocks = [...cur.el.querySelectorAll(".step > *, .flow > p, .chapter__head")];
       for (const b of cur.el._blocks) {
         const r = b.getBoundingClientRect();
         if (r.bottom > 0 && r.top < vh && r.height) top = Math.min(top, r.top);
@@ -257,6 +254,14 @@ async function startGL() {
       panelStage.style.pointerEvents = k > 0.5 ? "auto" : "none";
     }
     world.tick(Math.min(0.1, deltaMs / 1000), deltaMs / 1000);
-  });
+  };
+  gsap.ticker.add(loop);
+  if (debugMode) {
+    // deterministic stepping for the visual-defect tests: stop the real clock and advance fixed frames
+    let simT = 0;
+    window.__freeze = () => { gsap.ticker.remove(loop); simT = performance.now(); };
+    window.__scrollTo = (y, smooth = false) => lenis.scrollTo(y, { immediate: !smooth, force: true });
+    window.__step = (n = 1, dtMs = 1000 / 60) => { for (let i = 0; i < n; i++) { simT += dtMs; loop(simT / 1000, dtMs); } };
+  }
   document.addEventListener("visibilitychange", () => { if (!document.hidden) ScrollTrigger.refresh(); });
 }

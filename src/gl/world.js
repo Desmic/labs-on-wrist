@@ -8,7 +8,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import { COL, seg, smooth, lerp, clamp, canvasTexture, glowMat } from "./kit.js";
 import { apartment, clinic, drawSharedScreen } from "./rooms.js";
-import { loadHumanAsset, makeHuman } from "./human.js";
+import { loadHumanAssets, makeHuman } from "./human.js";
 import { pointsMat, lifeThread, dayBeads, fragments, wearable, dataBody, RINGS, loopRing, LOOP, labStreams, SOURCES, field, PEOPLE } from "./pieces.js";
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -148,7 +148,7 @@ export function createWorld(canvas, labelHost, { lite }) {
   lab.group.position.copy(LAB);
   scene.add(lab.group);
   lab.srcs.forEach((s) => label(`<strong>${s.name}</strong>`, s.pos.clone().add(V(0, -0.9, 0)), 9, lab.group, "lbl--center lbl--small"));
-  label(`<strong>The wrist</strong>`, V(0, -0.95, 0), 9, lab.group, "lbl--center lbl--small");
+  label(`<strong>A few signals that matter</strong>`, V(0, -0.95, 0), 9, lab.group, "lbl--center lbl--small");
 
   const fld = field(lite);
   fld.group.position.copy(FIELD);
@@ -349,23 +349,28 @@ export function createWorld(canvas, labelHost, { lite }) {
     return m;
   }
 
-  loadHumanAsset(`${import.meta.env.BASE_URL}models/xbot.glb`).then(() => {
-    const aarav = { color: COL.clayWarm, joint: 0x7d7368 };
+  const M = `${import.meta.env.BASE_URL}models/`;
+  loadHumanAssets({ xbot: `${M}xbot.glb`, adam: `${M}adam.glb` }, `${M}anims.glb`).then(() => {
+    // Aarav: Mixamo "Adam", coloured in the site's palette rather than photo textures
+    const aarav = { kind: "adam", seatLift: Number(new URLSearchParams(location.search).get("lift") ?? 0.045), palette: { skin: 0x9a6b4f, top: 0x6f8f8a, bottom: 0x3b4146, shoes: 0xd8d3c8, hair: 0x1c1a19 } };
     const cupObj = apt.standing.armR.elbow.children.find((c) => c.geometry && c.geometry.type === "CylinderGeometry");
     apt.standing = swap(apt.standing, { ...aarav, pose: "cup" }, apt.group);
     apt.lying = swap(apt.lying, { ...aarav, pose: "lie", speed: 0.35 }, apt.group, V(-3.4, -0.23, -2.38));
     apt.atWindow = swap(apt.atWindow, { ...aarav, pose: "cup", speed: 0.5 }, apt.group);
     cli.doctor = swap(cli.doctor, { color: COL.coat, joint: 0x9aa3a8, pose: "sit", build: "f" }, cli.group);
-    cli.patient = swap(cli.patient, { ...aarav, pose: "sit" }, cli.group);
+    // Adam's shins are longer than X Bot's: sit him further back in the chair so his knees clear the desk
+    cli.patient = swap(cli.patient, { ...aarav, pose: "sit" }, cli.group, V(0.2, 0.006, 0.1));
     if (cupObj) {
       const cup2 = cupObj.clone();
       cupObj.rotation.set(0, 0, 0); attach(cupObj, apt.standing.hand("R"), V(0, 0.08, 0.05));
       cup2.rotation.set(0, 0, 0); attach(cup2, apt.atWindow.hand("R"), V(0, 0.08, 0.05));
     }
+    // the band sits just above the wrist, wherever this rig's wrist is
+    const wrist = (h) => { const fa = h.bones.LeftForeArm, hd = h.bones.LeftHand; const a = fa.getWorldPosition(V()), b = hd.getWorldPosition(V()); return V(0, a.distanceTo(b) * 0.86, 0); };
     apt.band.rotation.set(Math.PI / 2, 0, 0);
-    attach(apt.band, apt.standing.bones.LeftForeArm, V(0, 0.24, 0));
+    attach(apt.band, apt.standing.bones.LeftForeArm, wrist(apt.standing));
     apt.band2.rotation.set(Math.PI / 2, 0, 0);
-    attach(apt.band2, apt.atWindow.bones.LeftForeArm, V(0, 0.24, 0));
+    attach(apt.band2, apt.atWindow.bones.LeftForeArm, wrist(apt.atWindow));
     apt.draped = drapeDuvet(apt.lying, apt.group);
     setApt(aptMode || "day");
   }).catch((e) => console.warn("people model unavailable, keeping simple figures", e));
@@ -376,8 +381,6 @@ export function createWorld(canvas, labelHost, { lite }) {
   const mood = { ...MOODS.hero, bgC: new THREE.Color(MOODS.hero.bg), keyC: new THREE.Color(MOODS.hero.key), keyDir: MOODS.hero.keyDir.clone() };
   let headCover = 0, textTop = Infinity;
   let active = 0, prog = 0, size = { w: 1, h: 1 }, mobile = false, time = 0, screenState = "";
-  const labState = { chosen: new Set(["motion", "pulse"]) };
-  lab.set(labState.chosen);
 
   let aptMode = "";
   function setApt(modeName) {
@@ -417,19 +420,27 @@ export function createWorld(canvas, labelHost, { lite }) {
   resize();
 
   /* adaptive resolution: keep frame time near 60 fps on integrated GPUs */
+  // Every change of resolution is a visible jump, so: drop quickly when frames are slow, but only climb back after
+  // several fast windows in a row, never within 6 s of a drop, and never back to a level that was just too slow.
   const ft = [];
-  let lastQ = 0;
+  let lastQ = -10, fastRuns = 0, ceiling = 1;
   function adapt(rawDt) {
     if (document.hidden || rawDt > 0.25) return;
     ft.push(rawDt);
-    if (ft.length < 50) return;
-    const avg = ft.reduce((a, b) => a + b, 0) / ft.length;
+    if (ft.length < 60) return;
+    const sorted = ft.slice().sort((a, b) => a - b);
+    const med = sorted[sorted.length >> 1]; // median ignores one-off hitches (GC, tab switches)
     ft.length = 0;
-    if (time - lastQ < 1.2) return;
     let q = quality;
-    if (avg > 1 / 46) q = Math.max(0.5, quality - (avg > 1 / 30 ? 0.2 : 0.1));
-    else if (avg < 1 / 58 && quality < 1) q = Math.min(1, quality + 0.05);
-    if (q !== quality) { quality = q; lastQ = time; resize(); }
+    if (med > 1 / 45 && time - lastQ > 1.5) {
+      q = Math.max(0.5, quality - (med > 1 / 30 ? 0.2 : 0.1));
+      ceiling = quality; // that level was too slow
+      fastRuns = 0;
+    } else if (med < 1 / 57) {
+      fastRuns++;
+      if (fastRuns >= 4 && time - lastQ > 6 && quality < ceiling - 0.05) { q = Math.min(1, quality + 0.05); fastRuns = 0; }
+    } else fastRuns = 0;
+    if (q !== quality) { quality = Math.round(q * 100) / 100; lastQ = time; resize(); }
   }
 
   /* ---------- scroll-driven acting: every value comes from scroll position, so it reverses exactly ---------- */
@@ -481,6 +492,7 @@ export function createWorld(canvas, labelHost, { lite }) {
     return shot;
   }
   const tmpC = new THREE.Color();
+  const keyN = new THREE.Vector3(), keyR = new THREE.Vector3(), keyU = new THREE.Vector3(), keyC = new THREE.Vector3();
   const ptr = { x: 0, y: 0 }, ptrT = { x: 0, y: 0 };
   const camRight = new THREE.Vector3(), camUp = new THREE.Vector3();
   window.addEventListener("pointermove", (e) => {
@@ -523,8 +535,15 @@ export function createWorld(canvas, labelHost, { lite }) {
     fill.intensity = lerp(fill.intensity, m.fill, am);
     scene.environmentIntensity = lerp(scene.environmentIntensity, m.env, am);
     // key light follows what the camera is looking at
-    key.target.position.copy(camLook);
-    key.position.copy(camLook).addScaledVector(mood.keyDir.clone().normalize(), 22);
+    // snap the shadow camera to whole shadow-map texels, so shadow edges don't crawl as the camera drifts
+    keyN.copy(mood.keyDir).normalize();
+    keyR.crossVectors(keyN, Math.abs(keyN.y) > 0.99 ? V(1, 0, 0) : V(0, 1, 0)).normalize();
+    keyU.crossVectors(keyR, keyN);
+    const texel = (key.shadow.camera.right - key.shadow.camera.left) / key.shadow.mapSize.x;
+    const sr = Math.round(camLook.dot(keyR) / texel) * texel, su = Math.round(camLook.dot(keyU) / texel) * texel, sn = camLook.dot(keyN);
+    keyC.copy(keyR).multiplyScalar(sr).addScaledVector(keyU, su).addScaledVector(keyN, sn);
+    key.target.position.copy(keyC);
+    key.position.copy(keyC).addScaledVector(keyN, 22);
     fill.target.position.copy(camLook);
     fill.position.copy(camPos).add(V(0, 3, 0));
     const shaftO = lerp(apt.shaft.material.uniforms.uOpacity.value, m.shaft, am);
@@ -565,13 +584,13 @@ export function createWorld(canvas, labelHost, { lite }) {
       }
     }
     lab.srcs.forEach((s) => (s.mat.uniforms.uTime.value = time));
+    lab.progress(active === 9 ? smooth(seg(prog, 0.05, 0.6)) : active > 9 ? 1 : 0, time);
     lab.update(dt);
     lab.core.rotation.z = time * 0.2;
 
     labelList.forEach((L) => {
       let o = L.station === active ? L.show : 0;
       if (active !== 0 && headCover > 0) o *= 1 - Math.min(1, headCover * 1.8); // keep labels off chapter titles
-      if (L.station === 9) o *= 1 - seg(prog, 0.2, 0.27); // the lab's own content takes over the screen
       if (textTop < Infinity && o > 0.01) {
         // on phones, story text sits low on the screen: hide labels it would run into
         // a hidden label has no layout, so remember where it was last drawn (otherwise it flickers on and off)
@@ -640,13 +659,26 @@ export function createWorld(canvas, labelHost, { lite }) {
     });
     return rows;
   }
-  if (new URLSearchParams(location.search).has("debug")) window.__figures = figureReport;
+  if (new URLSearchParams(location.search).has("debug")) {
+    window.__figures = figureReport;
+    // world positions of every bone of every visible figure, plus camera and quality: used by the jitter test
+    window.__bones = () => {
+      const out = {};
+      const v = new THREE.Vector3();
+      humans.forEach(({ h, group }, i) => {
+        if (!group.visible || !h.root.visible) return;
+        const b = {};
+        for (const [n, bone] of Object.entries(h.bones)) { bone.getWorldPosition(v); b[n] = [v.x, v.y, v.z]; }
+        out[i] = b;
+      });
+      return { bones: out, cam: camera.position.toArray(), look: camLook.toArray(), key: key.position.toArray(), quality };
+    };
+  }
 
   return {
     tick,
     resize,
     setActive(i, p, cover = 0, top = Infinity) { active = i; prog = p; headCover = cover; textTop = top; },
-    setLab(chosen) { labState.chosen = new Set(chosen); lab.set(labState.chosen); },
     rings: body.rings,
     toggleRing(i) { body.rings[i].on = !body.rings[i].on; return body.rings[i].on; },
     snap() { const s = shotNow(); camPos.copy(s.pos); camLook.copy(s.look); },
