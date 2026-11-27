@@ -206,7 +206,7 @@ export function createWorld(canvas, labelHost, { lite }) {
   scene.add(dust);
 
   /* ---------- post ---------- */
-  const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: lite ? 0 : 2 });
+  const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: lite ? 0 : 2, stencilBuffer: true });
   const composer = new EffectComposer(renderer, rt);
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.6, 1.2);
@@ -214,14 +214,14 @@ export function createWorld(canvas, labelHost, { lite }) {
   // Tone mapping, colour space, vignette and grain in ONE full-screen pass (a separate grade pass cost ~4 ms on
   // integrated graphics). The grade runs after the sRGB conversion, as before.
   const output = new OutputPass();
-  Object.assign(output.uniforms, { uTime: { value: 0 }, uGrain: { value: 0.035 }, uVig: { value: 0.9 } });
+  Object.assign(output.uniforms, { uTime: { value: 0 }, uGrain: { value: 0.035 }, uVig: { value: 0.9 }, uGradeOn: { value: 1 } });
   output.material.fragmentShader = output.material.fragmentShader
-    .replace("uniform sampler2D tDiffuse;", `uniform sampler2D tDiffuse; uniform float uTime; uniform float uGrain; uniform float uVig;
+    .replace("uniform sampler2D tDiffuse;", `uniform sampler2D tDiffuse; uniform float uTime; uniform float uGrain; uniform float uVig; uniform float uGradeOn;
       float gh(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }`)
     .replace(/\}\s*$/, `
       vec2 q = vUv - 0.5; float vg = smoothstep(0.85, 0.2, length(q*vec2(1.0,0.85))*uVig);
-      gl_FragColor.rgb *= mix(0.55, 1.0, vg);
-      gl_FragColor.rgb += (gh(vUv*vec2(1920.,1080.) + floor(uTime*12.0)) - 0.5) * uGrain;
+      gl_FragColor.rgb *= mix(1.0, mix(0.55, 1.0, vg), uGradeOn);
+      gl_FragColor.rgb += (gh(vUv*vec2(1920.,1080.) + floor(uTime*12.0)) - 0.5) * uGrain * uGradeOn;
     }`);
   output.material.needsUpdate = true;
   composer.addPass(output);
@@ -229,6 +229,17 @@ export function createWorld(canvas, labelHost, { lite }) {
   // Edge smoothing for when multisampling is switched off on slow GPUs (see adapt())
   const fxaa = new FXAAPass();
   fxaa.enabled = false;
+  // When FXAA is on, vignette and grain move here, AFTER the edge smoothing: if FXAA ran on top of the grain, its edge
+  // blending would change every time the grain does (12 times a second) and edges would flicker.
+  Object.assign(fxaa.material.uniforms, { uTime: output.uniforms.uTime, uGrain: output.uniforms.uGrain, uVig: output.uniforms.uVig });
+  fxaa.material.fragmentShader = fxaa.material.fragmentShader
+    .replace("uniform sampler2D tDiffuse;", `uniform sampler2D tDiffuse; uniform float uTime; uniform float uGrain; uniform float uVig;
+      float gh(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }`)
+    .replace("gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );", `gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );
+      vec2 q = vUv - 0.5; float vg = smoothstep(0.85, 0.2, length(q*vec2(1.0,0.85))*uVig);
+      gl_FragColor.rgb *= mix(0.55, 1.0, vg);
+      gl_FragColor.rgb += (gh(vUv*vec2(1920.,1080.) + floor(uTime*12.0)) - 0.5) * uGrain;`);
+  fxaa.material.needsUpdate = true;
   composer.addPass(fxaa);
 
   /* ---------- shots ---------- */
@@ -359,7 +370,7 @@ export function createWorld(canvas, labelHost, { lite }) {
   const M = `${import.meta.env.BASE_URL}models/`;
   loadHumanAssets({ xbot: `${M}xbot.glb`, adam: `${M}adam.glb`, roth: `${M}roth.glb` }, `${M}anims.glb`).then(() => {
     // Aarav: Mixamo "Adam", coloured in the site's palette rather than photo textures
-    const aarav = { kind: "adam", seatLift: Number(new URLSearchParams(location.search).get("lift") ?? 0.045), palette: { skin: 0x9a6b4f, top: 0x6f8f8a, bottom: 0x3b4146, shoes: 0xd8d3c8, hair: 0x1c1a19 } };
+    const aarav = { kind: "adam", seatLift: Number(new URLSearchParams(location.search).get("lift") ?? 0.045), palette: { skin: 0x9a6b4f, top: 0x6f8f8a, bottom: 0x59606a, shoes: 0xd8d3c8, hair: 0x1c1a19 } };
     const cupObj = apt.standing.armR.elbow.children.find((c) => c.geometry && c.geometry.type === "CylinderGeometry");
     apt.standing = swap(apt.standing, { ...aarav, pose: "cup" }, apt.group);
     apt.lying = swap(apt.lying, { ...aarav, pose: "lie", speed: 0.35 }, apt.group, V(-3.4, -0.23, -2.38));
@@ -448,6 +459,7 @@ export function createWorld(canvas, labelHost, { lite }) {
   function setMSAA(n) {
     [composer.renderTarget1, composer.renderTarget2].forEach((t) => { t.samples = n; t.dispose(); });
     fxaa.enabled = n === 0 && !lite;
+    output.uniforms.uGradeOn.value = fxaa.enabled ? 0 : 1;
   }
   function adapt(rawDt) {
     if (document.hidden || rawDt > 0.25) return;
@@ -713,6 +725,8 @@ export function createWorld(canvas, labelHost, { lite }) {
   if (new URLSearchParams(location.search).has("debug")) {
     window.__figures = figureReport;
     window.__renderer = renderer;
+    window.__scene = scene;
+    window.__pick = (x, y) => { const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1), camera); return rc.intersectObjects(scene.children, true).slice(0, 4).map((h) => [h.object.name, h.object.type, h.object.material && h.object.material.name, h.object.material && h.object.material.color && h.object.material.color.getHexString(), +h.distance.toFixed(3), h.face && h.face.normal.toArray().map((v) => +v.toFixed(2))]); };
     // switches for measuring what each part of the frame costs (qa/gpu_cost.js)
     window.__perf = {
       quality: (q) => { quality = q; resize(); },

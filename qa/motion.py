@@ -80,6 +80,7 @@ async def main():
         pg.on("pageerror", lambda e: errs.append(str(e)[:300]))
         await pg.goto(URL); await pg.wait_for_timeout(9000)
         await pg.evaluate("window.__freeze()")
+        if os.environ.get("PRE"): print("PRE", await pg.evaluate(os.environ["PRE"]), flush=True)  # e.g. force a render setting
         out = {"errors": errs, "tests": []}
         for sec, pct in POS:
             pct = float(pct); name = f"{sec}-{int(pct*100):02d}"

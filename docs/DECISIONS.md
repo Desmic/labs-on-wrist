@@ -62,6 +62,11 @@ The founder asked for the most ambitious animated, scroll-driven experience curr
 - `qa/run_all.sh` runs every check in one command with pass/fail thresholds (`qa/motion_check.py`): vibration ≤ 1 mm/frame², pops ≤ 3× neighbours, shimmer ≤ 0.05 % of pixels.
 - Measured on the founder's laptop (Intel UHD integrated graphics, 1920×889, full resolution, live site): 17–31 ms per frame depending on chapter; fixed post-processing cost is about 17 ms. Adaptive resolution takes it from there; per-pass costs are measured with `?debug` `__perf` switches.
 
+## D9 — Frame cost and a hidden lighting seam (27 Nov 2026)
+
+- Measured on the founder's laptop (Intel UHD, 1920×889, live site, frozen clock with a GPU sync per frame): 2× multisampling was ~40 % of the frame. Adaptive quality now drops it first, for FXAA, before lowering resolution; tone mapping, vignette and grain share one pass. Result: 10–20 ms per chapter at full resolution (was 16–31 ms).
+- A sharp dark patch on Aarav's shin was traced (by raycast, not by guessing) to the window light-shaft volume: an additive box that brightened the parts of a figure behind its front face and not the parts in front. Figures now write a stencil mark and light shafts skip those pixels. Ruled out on the way: mesh simplification, compression, normals, face winding, shadows.
+
 ## Owed work (from the master brief)
 
 - Full Phase 0: 20+ reference matrix with live inspection and measurements.

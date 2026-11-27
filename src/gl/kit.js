@@ -80,6 +80,9 @@ export function lightShaft(w, h, d, color) {
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
+    // skip pixels covered by figures (they write stencil 1); see human.js
+    stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc,
+    stencilFail: THREE.KeepStencilOp, stencilZFail: THREE.KeepStencilOp, stencilZPass: THREE.KeepStencilOp,
     uniforms: { uColor: { value: new THREE.Color(color) }, uOpacity: { value: 0.12 } },
     vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
     fragmentShader: `uniform vec3 uColor; uniform float uOpacity; varying vec3 vP;

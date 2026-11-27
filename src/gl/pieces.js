@@ -26,13 +26,23 @@ export function pointsMat(size = 0.05, opts = {}) {
 /* ---------------- The life thread ---------------- */
 export function lifeThread(points) {
   const curve = new THREE.CatmullRomCurve3(points, false, "centripetal", 0.5);
-  const geo = new THREE.TubeGeometry(curve, 1400, 0.028, 8, false);
+  const R = 0.028;
+  const geo = new THREE.TubeGeometry(curve, 1400, R, 8, false);
   const mat = new THREE.ShaderMaterial({
     transparent: true,
-    uniforms: { uColor: { value: COL.amber.clone().multiplyScalar(2.2) }, uReveal: { value: 1 }, uOpacity: { value: 1 } },
-    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-    fragmentShader: `uniform vec3 uColor; uniform float uReveal; uniform float uOpacity; varying vec2 vUv;
-      void main(){ if (vUv.x > uReveal) discard; gl_FragColor = vec4(uColor, uOpacity); }`,
+    // uScale: device pixels per world unit at distance 1 (set on resize, as for point sprites)
+    uniforms: { uColor: { value: COL.amber.clone().multiplyScalar(2.2) }, uReveal: { value: 1 }, uOpacity: { value: 1 }, uScale: { value: 400 }, uR: { value: R } },
+    // Far away the tube is thinner than a pixel, and its stair-stepped edges crawl as the camera drifts. Never let it
+    // get thinner than 1.6 px on screen; dim it by the same factor so it keeps its weight.
+    vertexShader: `uniform float uScale; uniform float uR; varying vec2 vUv; varying float vDim;
+      void main(){ vUv = uv;
+        vec3 c = position - normal * uR;
+        float d = max(0.05, -(modelViewMatrix * vec4(c, 1.)).z);
+        float r = max(uR, 0.8 * d / uScale);
+        vDim = uR / r;
+        gl_Position = projectionMatrix*modelViewMatrix*vec4(c + normal * r, 1.); }`,
+    fragmentShader: `uniform vec3 uColor; uniform float uReveal; uniform float uOpacity; varying vec2 vUv; varying float vDim;
+      void main(){ if (vUv.x > uReveal) discard; gl_FragColor = vec4(uColor * vDim, uOpacity); }`,
     toneMapped: false,
   });
   const mesh = new THREE.Mesh(geo, mat);

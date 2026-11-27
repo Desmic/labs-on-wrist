@@ -170,6 +170,10 @@ export function makeHuman({ height = 1.78, seatLift = 0, kind = "xbot", color = 
       const part = palette && (PART[(o.name || "").replace(/^Ch\d+_|_\d+$/g, "")] || PART[o.parent && o.parent.name.replace(/^Ch\d+_/, "")]);
       if (part) o.material = clayMat(palette[part], part === "hair" ? 0.95 : part === "skin" ? 0.7 : 0.85);
       else o.material = /joint/i.test(o.material?.name || "") ? joints : surf;
+      // figures mark their pixels in the stencil buffer so light-shaft volumes skip them: a figure standing inside a
+      // shaft would otherwise be cut by a hard line where it crosses the shaft's face
+      o.material = o.material.clone();
+      Object.assign(o.material, { stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp });
       o.castShadow = true;
       o.receiveShadow = true;
       o.frustumCulled = false;
