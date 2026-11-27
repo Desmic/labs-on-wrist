@@ -44,7 +44,11 @@ export function apartment() {
   const bed = new THREE.Group();
   bed.add(box(1.6, 0.34, 2.2, clayMat(COL.wood, 0.8), 0, 0.17, 0, 0.04));
   bed.add(box(1.5, 0.2, 2.1, clayMat(COL.linen, 0.95), 0, 0.44, 0, 0.08));
-  bed.add(box(1.52, 0.1, 1.3, clayMat(COL.fabric, 0.95), 0, 0.57, 0.38, 0.05));
+  // made-bed duvet (hidden while someone sleeps; a draped one is built over the sleeper)
+  const duvet = new THREE.Group();
+  duvet.add(box(1.56, 0.08, 1.22, clayMat(COL.fabric, 0.95), 0, 0.59, 0.45, 0.035));
+  duvet.add(box(1.58, 0.06, 0.16, clayMat(0x6b8a92, 0.95), 0, 0.63, -0.12, 0.03));
+  bed.add(duvet);
   bed.add(box(0.6, 0.12, 0.34, clayMat(0xece8e0, 0.95), -0.33, 0.6, -0.82, 0.06));
   bed.add(box(0.6, 0.12, 0.34, clayMat(0xece8e0, 0.95), 0.33, 0.6, -0.82, 0.06));
   bed.add(box(1.6, 0.9, 0.1, clayMat(COL.wood, 0.8), 0, 0.45, -1.12, 0.03));
@@ -142,7 +146,7 @@ export function apartment() {
 
   return {
     group: g,
-    lamp, shaft, q, ring, band, band2, standing, lying, atWindow,
+    lamp, shaft, q, ring, band, band2, standing, lying, atWindow, duvet,
     windowCenter: windowCenter.clone(),
     anchors: {
       wrist: () => standing.armL.elbow.localToWorld(new THREE.Vector3(0, -0.24, 0)),

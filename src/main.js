@@ -7,6 +7,7 @@ const html = document.documentElement;
 const body = document.body;
 const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const mobile = window.matchMedia("(max-width: 860px)").matches;
+const debugMode = new URLSearchParams(location.search).has("debug");
 
 function readPref() { try { return localStorage.getItem("static-mode"); } catch { return null; } }
 function writePref(v) { try { localStorage.setItem("static-mode", v); } catch { /* storage unavailable */ } }
@@ -210,11 +211,11 @@ async function startGL() {
   // Reading focus: body text is bright near the middle of the screen and dims at the edges.
   // No movement, so it never fights the camera.
   gsap.utils.toArray(".step").forEach((el) => {
-    if (el.querySelector(".narration, .closing")) return;
-    gsap.timeline({ scrollTrigger: { trigger: el, start: "top bottom", end: "bottom top", scrub: true } })
-      .fromTo(el, { opacity: 0.12 }, { opacity: 1, ease: "power1.out", duration: 0.3 })
-      .to(el, { opacity: 1, duration: 0.4 })
-      .to(el, { opacity: 0.12, ease: "power1.in", duration: 0.3 });
+    const spoken = !!el.querySelector(".narration, .closing"); // those light up word by word instead
+    gsap.timeline({ scrollTrigger: { trigger: el, start: "top bottom", end: "bottom 12%", scrub: true } })
+      .fromTo(el, { opacity: spoken ? 1 : 0.12 }, { opacity: 1, ease: "power1.out", duration: 0.3 })
+      .to(el, { opacity: 1, duration: 0.35 })
+      .to(el, { opacity: 0, ease: "power1.in", duration: 0.35 });
   });
   gsap.utils.toArray(".short__grid > div, .claims li, .principles li, .lab, .formula, .flow > p:not(.narration), .first__item").forEach((el) => {
     gsap.from(el, { opacity: 0, y: 24, duration: 1.0, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 90%", toggleActions: "play none none reverse" } });
@@ -237,7 +238,17 @@ async function startGL() {
       const r = head.getBoundingClientRect();
       cover = clamp(1 - Math.abs((r.top + r.height / 2) - vh / 2) / (vh * 0.6));
     }
-    world.setActive(cur.station, p, cover);
+    // phones: the top edge of whatever story text is on screen, so 3D labels can keep clear of it
+    let top = Infinity;
+    if (mobile) {
+      if (!cur.el._blocks) cur.el._blocks = [...cur.el.querySelectorAll(".step > *, .flow > p, .lab, .formula, .chapter__head")];
+      for (const b of cur.el._blocks) {
+        const r = b.getBoundingClientRect();
+        if (r.bottom > 0 && r.top < vh && r.height) top = Math.min(top, r.top);
+      }
+    }
+    world.setActive(cur.station, p, cover, top);
+    if (debugMode) window.__dbg = { station: cur.station, p, cover, top };
     if (first || snapAlways) { world.snap(); first = false; }
     updateSVG(vh, chapterIdx);
     if (panelStage) {

@@ -36,6 +36,13 @@ The founder asked for the most ambitious animated, scroll-driven experience curr
 - Stack: Three.js (r187), Lenis, GSAP ScrollTrigger + SplitText. All geometry is procedural; no external assets.
 - Safety kept: no flashing or strobing; bloom is steady; grain amplitude is low; reading mode and the SVG fallback remain.
 
+## D6 — Rigged figures and scroll-driven acting (27 Nov 2026)
+
+- Capsule mannequins replaced by a rigged faceless mannequin (Mixamo "X Bot" via the three.js examples), re-coloured to the clay palette. A faceless segmented mannequin fits the Fern-style miniature; fully textured Mixamo characters (real faces and clothes, e.g. "Remy") were checked and rejected because they clash with the clay sets. Mixamo's male "Y Bot" is the preferred upgrade and drops in by replacing `public/models/xbot.glb` (needs a Mixamo sign-in to download).
+- Every action is driven by scroll position, not time, so it reverses exactly: walk with chai (ch1), wake and sit up on the bed edge (ch2), head shake and nods (ch3, ch10), checking the band (ch5), a sip at the window (ch12). Breathing (idle) keeps running underneath.
+- Poses aim limbs at directions in the figure's own frame instead of hand-tuned bone angles.
+- Verification is now measured, not just eyeballed: `qa/verify.py` steps every chapter at ten scroll positions on desktop and mobile, samples the skinned surface of every figure (`?debug`), reports points inside furniture, feet off the floor, 3D labels over story text and console errors, and writes contact sheets.
+
 ## Owed work (from the master brief)
 
 - Full Phase 0: 20+ reference matrix with live inspection and measurements.

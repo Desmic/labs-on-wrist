@@ -244,7 +244,7 @@ export function createWorld(canvas, labelHost, { lite }) {
     },
     4: (p) => T({ pos: FRAG.clone().add(V(lerp(-3, 1, p), lerp(1.5, 0.4, p), 15)), look: FRAG.clone().add(V(0, 0, 0)), mood: "void" }),
     5: (p) => {
-      const k = smooth(seg(p, 0.15, 0.9));
+      const k = smooth(seg(p, 0.56, 0.92));
       return { pos: APT.clone().add(V(lerp(3.6, 7.5, k), lerp(1.7, 4.2, k), lerp(0.6, 8.5, k))), look: APT.clone().add(V(lerp(2.1, 0.8, k), lerp(1.05, 1.1, k), lerp(-1.6, -1.5, k))), mood: "morning", apt: "wear" };
     },
     6: (p) => {
@@ -280,7 +280,9 @@ export function createWorld(canvas, labelHost, { lite }) {
   }
   function swap(old, opts, group, pos) {
     const h = makeHuman(opts);
+    h.root.userData.isHuman = true;
     h.root.position.copy(pos || old.root.position);
+    if (!pos) h.root.position.y = 0.006; // soles on the floor surface (y = 0.02)
     h.root.rotation.copy(old.root.rotation);
     h.root.visible = old.root.visible;
     group.remove(old.root);
@@ -288,19 +290,83 @@ export function createWorld(canvas, labelHost, { lite }) {
     humans.push({ h, group });
     return h;
   }
+  /* A duvet that drapes over the sleeping figure: a height field over the bed, lifted wherever the body is. */
+  function drapeDuvet(sleeper, group) {
+    sleeper.update(0);
+    group.updateMatrixWorld(true);
+    const inv = group.matrixWorld.clone().invert();
+    const pts = sleeper.sample(2).map((p) => p.applyMatrix4(inv));
+    const x0 = -4.22, x1 = -2.58, z0 = -2.4, z1 = -1.08, nx = 42, nz = 34;
+    const top = 0.615, side = 0.42;
+    const H = Array.from({ length: nz + 1 }, () => new Float32Array(nx + 1).fill(top));
+    const cx = (x1 - x0) / nx, cz = (z1 - z0) / nz;
+    pts.forEach((p) => {
+      const i = Math.round((p.x - x0) / cx), k = Math.round((p.z - z0) / cz);
+      for (let dk = -2; dk <= 2; dk++) for (let di = -2; di <= 2; di++) {
+        const ii = i + di, kk = k + dk;
+        if (ii < 0 || kk < 0 || ii > nx || kk > nz) continue;
+        H[kk][ii] = Math.max(H[kk][ii], p.y + 0.045);
+      }
+    });
+    for (let pass = 0; pass < 3; pass++) { // soften like fabric
+      const C = H.map((r) => r.slice());
+      for (let k = 1; k < nz; k++) for (let i = 1; i < nx; i++) {
+        H[k][i] = Math.max(C[k][i] * 0.6, (C[k][i] * 4 + C[k][i - 1] + C[k][i + 1] + C[k - 1][i] + C[k + 1][i]) / 8);
+      }
+    }
+    const geo = new THREE.PlaneGeometry(1, 1, nx, nz);
+    const pos = geo.attributes.position;
+    for (let k = 0; k <= nz; k++) for (let i = 0; i <= nx; i++) {
+      const v = k * (nx + 1) + i;
+      const x = x0 + i * cx, z = z0 + k * cz;
+      let y = H[k][i];
+      const edgeX = Math.min(i, nx - i) / 3, edgeFoot = (nz - k) / 3; // drape over the sides and the foot
+      const e = Math.min(1, edgeX, edgeFoot);
+      y = side + (y - side) * (e < 1 ? Math.sin(e * Math.PI / 2) : 1);
+      pos.setXYZ(v, x, y, z);
+    }
+    geo.computeVertexNormals();
+    const yBody = new Float32Array(pos.count), yFlat = new Float32Array(pos.count);
+    for (let k = 0; k <= nz; k++) for (let i = 0; i <= nx; i++) {
+      const v = k * (nx + 1) + i;
+      yBody[v] = pos.getY(v);
+      const e = Math.min(1, Math.min(i, nx - i) / 3, (nz - k) / 3);
+      yFlat[v] = side + (top - side) * (e < 1 ? Math.sin(e * Math.PI / 2) : 1) + 0.02 * Math.sin(i * 0.9) * Math.sin(k * 0.7) * e; // a few soft creases
+    }
+    let lastK = -1;
+    const relax = (k) => { // 0 = over the sleeper, 1 = flattened when he gets up
+      if (Math.abs(k - lastK) < 0.002) return;
+      lastK = k;
+      for (let v = 0; v < pos.count; v++) pos.setY(v, yBody[v] + (yFlat[v] - yBody[v]) * k);
+      pos.needsUpdate = true;
+      geo.computeVertexNormals();
+    };
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: COL.fabric, roughness: 0.95, side: THREE.DoubleSide }));
+    m.userData.relax = relax;
+    m.castShadow = true; m.receiveShadow = true;
+    m.visible = false;
+    group.add(m);
+    return m;
+  }
+
   loadHumanAsset(`${import.meta.env.BASE_URL}models/xbot.glb`).then(() => {
     const aarav = { color: COL.clayWarm, joint: 0x7d7368 };
     const cupObj = apt.standing.armR.elbow.children.find((c) => c.geometry && c.geometry.type === "CylinderGeometry");
     apt.standing = swap(apt.standing, { ...aarav, pose: "cup" }, apt.group);
-    apt.lying = swap(apt.lying, { ...aarav, pose: "lie", speed: 0.35 }, apt.group, V(-3.4, 0.44, -2.1));
-    apt.atWindow = swap(apt.atWindow, { ...aarav, pose: "window", speed: 0.5 }, apt.group);
+    apt.lying = swap(apt.lying, { ...aarav, pose: "lie", speed: 0.35 }, apt.group, V(-3.4, -0.23, -2.38));
+    apt.atWindow = swap(apt.atWindow, { ...aarav, pose: "cup", speed: 0.5 }, apt.group);
     cli.doctor = swap(cli.doctor, { color: COL.coat, joint: 0x9aa3a8, pose: "sit", build: "f" }, cli.group);
     cli.patient = swap(cli.patient, { ...aarav, pose: "sit" }, cli.group);
-    if (cupObj) { cupObj.rotation.set(0, 0, 0); attach(cupObj, apt.standing.hand("R"), V(0, 0.08, 0.05)); }
+    if (cupObj) {
+      const cup2 = cupObj.clone();
+      cupObj.rotation.set(0, 0, 0); attach(cupObj, apt.standing.hand("R"), V(0, 0.08, 0.05));
+      cup2.rotation.set(0, 0, 0); attach(cup2, apt.atWindow.hand("R"), V(0, 0.08, 0.05));
+    }
     apt.band.rotation.set(Math.PI / 2, 0, 0);
     attach(apt.band, apt.standing.bones.LeftForeArm, V(0, 0.24, 0));
     apt.band2.rotation.set(Math.PI / 2, 0, 0);
     attach(apt.band2, apt.atWindow.bones.LeftForeArm, V(0, 0.24, 0));
+    apt.draped = drapeDuvet(apt.lying, apt.group);
     setApt(aptMode || "day");
   }).catch((e) => console.warn("people model unavailable, keeping simple figures", e));
 
@@ -308,7 +374,7 @@ export function createWorld(canvas, labelHost, { lite }) {
   const camPos = camera.position.clone();
   const camLook = V(-40, -0.6, 42);
   const mood = { ...MOODS.hero, bgC: new THREE.Color(MOODS.hero.bg), keyC: new THREE.Color(MOODS.hero.key), keyDir: MOODS.hero.keyDir.clone() };
-  let headCover = 0;
+  let headCover = 0, textTop = Infinity;
   let active = 0, prog = 0, size = { w: 1, h: 1 }, mobile = false, time = 0, screenState = "";
   const labState = { chosen: new Set(["motion", "pulse"]) };
   lab.set(labState.chosen);
@@ -319,6 +385,8 @@ export function createWorld(canvas, labelHost, { lite }) {
     const day = modeName === "day" || modeName === "wear";
     apt.standing.root.visible = day;
     apt.lying.root.visible = modeName === "night";
+    apt.duvet.visible = modeName !== "night" || !apt.draped;
+    if (apt.draped) apt.draped.visible = modeName === "night";
     apt.atWindow.root.visible = modeName === "sunset";
     apt.band.visible = modeName === "wear";
     apt.band2.visible = modeName === "sunset";
@@ -364,6 +432,54 @@ export function createWorld(canvas, labelHost, { lite }) {
     if (q !== quality) { quality = q; lastQ = time; resize(); }
   }
 
+  /* ---------- scroll-driven acting: every value comes from scroll position, so it reverses exactly ---------- */
+  const WALK_FROM = V(-1.3, 0.006, -0.1), WALK_TO = V(1.9, 0.006, -1.7), WALK_LEN = WALK_FROM.distanceTo(WALK_TO);
+  const HEADING = Math.atan2(WALK_TO.x - WALK_FROM.x, WALK_TO.z - WALK_FROM.z);
+  const LIE_AT = V(-3.4, -0.23, -2.38), EDGE_AT = V(-2.86, 0.006, -2.5);
+  const env = (p, a, b, c, d) => seg(p, a, b) * (1 - seg(p, c, d)); // rise a..b, fall c..d
+  const angLerp = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
+  function act() {
+    if (!humans.length) return;
+    const A = apt.standing, L = apt.lying, Wn = apt.atWindow, D = cli.doctor, P = cli.patient;
+    // Ch1: Aarav crosses the room with his chai, then turns towards us. Before ch1 he waits at the start.
+    const kWalk = active < 1 ? 0 : active > 1 ? 1 : smooth(seg(prog, 0.22, 0.47));
+    A.root.position.lerpVectors(WALK_FROM, WALK_TO, kWalk);
+    const turn = active < 1 ? 0 : active > 1 ? 1 : smooth(seg(prog, 0.44, 0.53));
+    A.root.rotation.y = angLerp(HEADING, -0.35, turn);
+    const wW = active === 1 ? env(prog, 0.2, 0.24, 0.44, 0.49) : 0;
+    A.setWalk(wW, (kWalk * WALK_LEN) / 1.3);
+    A.root.position.y += 0.03 * wW; // the walk cycle's planted foot sits a little lower than the idle's
+    // Ch5: he lifts his wrist to look at the band, then lowers it
+    const kCheck = active === 5 ? smooth(env(prog, 0.34, 0.43, 0.52, 0.6)) : 0;
+    A.setPose("cup", "check", kCheck);
+    // Ch2: asleep, then sits up on the edge of the bed, slumped
+    const kTurn = active === 2 ? smooth(seg(prog, 0.38, 0.46)) : active > 2 ? 1 : 0;
+    const kUp = active === 2 ? smooth(seg(prog, 0.45, 0.55)) : active > 2 ? 1 : 0;
+    if (kUp <= 0) L.setPose("lie", "lieEdge", kTurn);
+    else L.setPose("lieEdge", "bedEdge", kUp);
+    // phase 1 slides the hips to the edge at mattress height; phase 2 lowers the root as the hips drop onto the edge
+    L.root.position.set(lerp(LIE_AT.x, EDGE_AT.x, kTurn), lerp(LIE_AT.y, EDGE_AT.y, kUp), lerp(LIE_AT.z, EDGE_AT.z, kTurn));
+    L.root.rotation.y = (Math.PI / 2) * kTurn;
+    L.gesture("sad_pose", 0.85 * smooth(seg(kUp, 0.6, 1)), 0.5);
+    if (apt.draped) apt.draped.userData.relax(smooth(seg(kTurn, 0.1, 0.9)));
+    // Ch3: the doctor nods while asking; Aarav shakes his head trying to remember
+    D.gesture("agree", active === 3 ? 0.8 * env(prog, 0.22, 0.26, 0.38, 0.42) : active === 10 ? 0.8 * env(prog, 0.6, 0.64, 0.76, 0.8) : 0,
+      active === 3 ? seg(prog, 0.24, 0.4) : seg(prog, 0.62, 0.78));
+    P.gesture("headShake", active === 3 ? 0.9 * env(prog, 0.4, 0.44, 0.56, 0.6) : 0, seg(prog, 0.42, 0.58));
+    // Ch12: at the window with chai, he takes a sip
+    const kSip = active === 12 ? smooth(env(prog, 0.3, 0.38, 0.5, 0.58)) : 0;
+    Wn.setPose("cup", "sip", kSip);
+  }
+
+  function shotNow() {
+    const shot = (stations[active] || stations[0])(prog);
+    if (mobile && active !== 0) {
+      // portrait screens are narrow: pull back, and further for the monitor close-up so the whole screen fits
+      const mf = active === 10 ? lerp(1.35, 2.15, smooth(seg(prog, 0.1, 0.5))) : 1.35;
+      shot.pos.sub(shot.look).multiplyScalar(mf).add(shot.look);
+    }
+    return shot;
+  }
   const tmpC = new THREE.Color();
   const ptr = { x: 0, y: 0 }, ptrT = { x: 0, y: 0 };
   const camRight = new THREE.Vector3(), camUp = new THREE.Vector3();
@@ -375,8 +491,7 @@ export function createWorld(canvas, labelHost, { lite }) {
   function tick(dt, rawDt = dt) {
     time += dt;
     adapt(rawDt);
-    const shot = (stations[active] || stations[0])(prog);
-    if (mobile && active !== 0) shot.pos.sub(shot.look).multiplyScalar(1.35).add(shot.look);
+    const shot = shotNow();
     const m = MOODS[shot.mood];
     const a = 1 - Math.exp(-dt * 2.4);
     const am = 1 - Math.exp(-dt * 1.8);
@@ -419,6 +534,7 @@ export function createWorld(canvas, labelHost, { lite }) {
     skyMat.color.lerp(skyC.setRGB(...SKY[shot.mood]), am);
 
     if (shot.apt) setApt(shot.apt);
+    act();
     if (shot.screen && shot.screen !== screenState) {
       screenState = shot.screen;
       cli.screenMat.map = shot.screen === "shared" ? sharedTex : emptyTex;
@@ -454,7 +570,15 @@ export function createWorld(canvas, labelHost, { lite }) {
 
     labelList.forEach((L) => {
       let o = L.station === active ? L.show : 0;
-      if (active !== 0 && headCover > 0) o *= 1 - headCover; // keep labels off chapter titles
+      if (active !== 0 && headCover > 0) o *= 1 - Math.min(1, headCover * 1.8); // keep labels off chapter titles
+      if (L.station === 9) o *= 1 - seg(prog, 0.2, 0.27); // the lab's own content takes over the screen
+      if (textTop < Infinity && o > 0.01) {
+        // on phones, story text sits low on the screen: hide labels it would run into
+        // a hidden label has no layout, so remember where it was last drawn (otherwise it flickers on and off)
+        const r = L.el.firstChild.getBoundingClientRect();
+        if (r.width) L.bottom = r.bottom;
+        if (L.bottom !== undefined) o *= clamp((textTop - 10 - L.bottom) / 40);
+      }
       if (L === zoomLabel) o *= seg(prog, 0.7, 0.85);
       if (L === qLabel) o *= seg(prog, 0.25, 0.4);
       if (L.station === 6 && active === 6) o *= seg(prog, 0.4, 0.6);
@@ -471,13 +595,60 @@ export function createWorld(canvas, labelHost, { lite }) {
     labels.render(scene, camera);
   }
 
+  /* ---------- debug: measure how the figures sit against furniture (?debug) ---------- */
+  function figureReport(modeName) {
+    if (modeName) setApt(modeName);
+    const rows = [];
+    const solids = [];
+    [apt.group, cli.group].forEach((g) => {
+      g.updateMatrixWorld(true);
+      g.traverse((o) => {
+        if (!o.isMesh || o.isSkinnedMesh) return;
+        for (let a = o; a; a = a.parent) if (!a.visible) return;
+        if (!o.material || !o.material.isMeshStandardMaterial) return; // skip glows, glass, screens, light shafts
+        if (o === apt.draped) return; // a draped surface, checked separately
+        let a = o.parent; let skip = false;
+        while (a) { if (a.userData.isHuman) skip = true; a = a.parent; }
+        if (skip) return;
+        const b = new THREE.Box3().setFromObject(o);
+        const sz = b.getSize(V(0, 0, 0));
+        if (Math.min(sz.x, sz.y, sz.z) < 0.005) return;
+        solids.push({ name: o.name || o.geometry.type, box: b.expandByScalar(-0.02), group: g });
+      });
+    });
+    humans.forEach(({ h, group }, idx) => {
+      if (!h.root.visible) return;
+      for (let k = 0; k < 6; k++) h.update(1 / 30);
+      const pts = h.sample(5);
+      const gp = group.position;
+      let minY = Infinity, maxY = -Infinity;
+      pts.forEach((p) => { minY = Math.min(minY, p.y - gp.y); maxY = Math.max(maxY, p.y - gp.y); });
+      const hits = {};
+      solids.filter((sd) => sd.group === group).forEach((sd, i) => {
+        let n = 0;
+        pts.forEach((p) => { if (sd.box.containsPoint(p)) n++; });
+        if (n) {
+          const c = sd.box.getCenter(V(0, 0, 0)).sub(gp);
+          hits[`${sd.name}@${c.x.toFixed(2)},${c.y.toFixed(2)},${c.z.toFixed(2)}`] = n;
+        }
+      });
+      const rel = (n) => { const q = h.bonePos(n); return q ? [q.x - gp.x, q.y - gp.y, q.z - gp.z].map((x) => +x.toFixed(2)) : null; };
+      const hz = h.bonePos("Hips").z - gp.z;
+      let legsTop = -Infinity;
+      pts.forEach((p) => { if (p.z - gp.z > hz + 0.2) legsTop = Math.max(legsTop, p.y - gp.y); });
+      rows.push({ idx, pose: h.poseName(), samples: pts.length, legsTop: +legsTop.toFixed(3), minY: +minY.toFixed(3), maxY: +maxY.toFixed(3), head: rel("Head"), hips: rel("Hips"), footL: rel("LeftFoot"), footR: rel("RightFoot"), handR: rel("RightHand"), hits });
+    });
+    return rows;
+  }
+  if (new URLSearchParams(location.search).has("debug")) window.__figures = figureReport;
+
   return {
     tick,
     resize,
-    setActive(i, p, cover = 0) { active = i; prog = p; headCover = cover; },
+    setActive(i, p, cover = 0, top = Infinity) { active = i; prog = p; headCover = cover; textTop = top; },
     setLab(chosen) { labState.chosen = new Set(chosen); lab.set(labState.chosen); },
     rings: body.rings,
     toggleRing(i) { body.rings[i].on = !body.rings[i].on; return body.rings[i].on; },
-    snap() { const s = (stations[active] || stations[0])(prog); camPos.copy(s.pos); camLook.copy(s.look); },
+    snap() { const s = shotNow(); camPos.copy(s.pos); camLook.copy(s.look); },
   };
 }
