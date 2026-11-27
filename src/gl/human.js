@@ -47,8 +47,15 @@ function retargetClips(kind) {
   const S = boneMap(src);
   const T = boneMap(bases[kind].scene);
   const sRest = restWorld(S), tRest = restWorld(T);
-  const sHips0 = S.Hips.position.clone(), tHips0 = T.Hips.position.clone();
-  const hipScale = tHips0.y / sHips0.y;
+  // hip travel is moved in world space (rigs differ in units and in which way their root is turned),
+  // scaled by hip height above the feet, then expressed in the target hips' parent space
+  src.updateMatrixWorld(true);
+  const tScene = bases[kind].scene; tScene.updateMatrixWorld(true);
+  const sHipsW = S.Hips.getWorldPosition(new THREE.Vector3()), tHipsW = T.Hips.getWorldPosition(new THREE.Vector3());
+  const footY = (M, root) => Math.min(...["LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot"].filter((n) => M[n]).map((n) => M[n].getWorldPosition(new THREE.Vector3()).y));
+  const hipScale = (tHipsW.y - footY(T)) / (sHipsW.y - footY(S));
+  const tParentInv = T.Hips.parent.matrixWorld.clone().invert();
+  const dW = new THREE.Vector3(), pL = new THREE.Vector3();
   // target bones, parents first
   const order = [];
   T.Hips.traverse((o) => { const n = strip(o.name); if (S[n]) order.push(n); });
@@ -77,10 +84,9 @@ function retargetClips(kind) {
         q.copy(pw).invert().multiply(w[b]);
         q.toArray(rot[b], i * 4);
       }
-      const p = S.Hips.position;
-      pos[i * 3] = tHips0.x + (p.x - sHips0.x) * hipScale;
-      pos[i * 3 + 1] = tHips0.y + (p.y - sHips0.y) * hipScale;
-      pos[i * 3 + 2] = tHips0.z + (p.z - sHips0.z) * hipScale;
+      S.Hips.getWorldPosition(dW).sub(sHipsW).multiplyScalar(hipScale);
+      pL.copy(tHipsW).add(dW).applyMatrix4(tParentInv);
+      pL.toArray(pos, i * 3);
     }
     const tracks = order.map((b) => new THREE.QuaternionKeyframeTrack(`${T[b].name}.quaternion`, times, rot[b]));
     tracks.push(new THREE.VectorKeyframeTrack(`${T.Hips.name}.position`, times, pos));
@@ -147,8 +153,8 @@ const ORDER = [
 const PIVOT = 0.95; // lying down rotates about the hips, not the feet
 
 /* palette: { skin, top, bottom, shoes, hair } for figures with clothing meshes (named Body, Hoodie, Pants, Sneakers, Hair, Beard) */
-const PART = { Body: "skin", Hoodie: "top", Pants: "bottom", Sneakers: "shoes", Hair: "hair", Beard: "hair" };
-export function makeHuman({ seatLift = 0, kind = "xbot", color = 0xc2b29e, joint = 0x8d8478, palette = null, pose = "stand", speed = 0.7, build = "m" } = {}) {
+const PART = { Body: "skin", Hoodie: "top", Shirt: "top", Pants: "bottom", Sneakers: "shoes", Shoe: "shoes", Hair: "hair", Beard: "hair" };
+export function makeHuman({ height = 1.78, seatLift = 0, kind = "xbot", color = 0xc2b29e, joint = 0x8d8478, palette = null, pose = "stand", speed = 0.7, build = "m" } = {}) {
   const base = bases[kind];
   if (!base || !animGltf) throw new Error("human asset not loaded");
   const root = new THREE.Group();
@@ -170,10 +176,10 @@ export function makeHuman({ seatLift = 0, kind = "xbot", color = 0xc2b29e, joint
     }
   });
 
-  // normalise height to 1.78 m with feet on the floor
+  // normalise height (default 1.78 m) with feet on the floor
   model.updateMatrixWorld(true);
   const bb = new THREE.Box3().setFromObject(model);
-  const s = 1.78 / Math.max(0.01, bb.max.y - bb.min.y);
+  const s = height / Math.max(0.01, bb.max.y - bb.min.y);
   model.scale.multiplyScalar(s);
   model.position.y = -bb.min.y * s;
 
@@ -213,6 +219,14 @@ export function makeHuman({ seatLift = 0, kind = "xbot", color = 0xc2b29e, joint
   const g = {}; // gesture name -> { w, t }
 
   const hipsRest = bones.Hips ? bones.Hips.position.clone() : null;
+  // the figure's "up", expressed in the hips' parent space (Blender-exported rigs sit under a Z-up parent)
+  const hipsUp = new THREE.Vector3(0, 1, 0);
+  if (bones.Hips) {
+    root.updateMatrixWorld(true);
+    const qp = bones.Hips.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+    hipsUp.applyQuaternion(root.getWorldQuaternion(new THREE.Quaternion())).applyQuaternion(qp).normalize();
+  }
+  const hipD = new THREE.Vector3();
   const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), qp = new THREE.Quaternion(), qd = new THREE.Quaternion();
   const va = new THREE.Vector3(), vb = new THREE.Vector3(), vd = new THREE.Vector3(), vt = new THREE.Vector3();
 
@@ -245,10 +259,12 @@ export function makeHuman({ seatLift = 0, kind = "xbot", color = 0xc2b29e, joint
       root.getWorldScale(va);
       // seatLift: thicker thighs or longer shins need the hips to stop a little higher
       const dA = A.hipsDrop ? A.hipsDrop - seatLift : 0, dB = B.hipsDrop ? B.hipsDrop - seatLift : 0;
-      const drop = (dA * (1 - k) + dB * k) / (vt.y / va.y);
-      bones.Hips.position.x *= 0.15;
-      bones.Hips.position.z *= 0.15;
-      bones.Hips.position.y = Math.min(bones.Hips.position.y, hipsRest ? hipsRest.y : 0) - drop;
+      const drop = (dA * (1 - k) + dB * k) / (vt.x / va.x);
+      // keep only a little of the clip's sideways sway, never let it lift above rest height, then lower by drop
+      hipD.copy(bones.Hips.position).sub(hipsRest);
+      const up = Math.min(hipD.dot(hipsUp), 0);
+      hipD.addScaledVector(hipsUp, -hipD.dot(hipsUp)).multiplyScalar(0.15);
+      bones.Hips.position.copy(hipsRest).add(hipD).addScaledVector(hipsUp, up - drop);
     }
     for (const [name, childName] of ORDER) {
       const da = A.aim[name], db = B.aim[name];
@@ -309,5 +325,44 @@ export function makeHuman({ seatLift = 0, kind = "xbot", color = 0xc2b29e, joint
     poseName: () => (st.k < 0.5 ? st.a : st.b),
     hand: (side) => bones[side === "L" ? "LeftHand" : "RightHand"],
     scale: s,
+  };
+}
+
+/* ---- dissolve: one figure burns away into another ----
+ * k = 0: fully the figure as built; k = 1: gone. With `appear` the reverse, so a pair of figures sharing one k
+ * hands over cleanly: each point of space belongs to exactly one of them at any moment, with a thin warm seam. */
+export function makeDissolvable(h, appear = false) {
+  const u = { uDis: { value: appear ? 1 : 0 }, uInv: { value: appear ? 1 : 0 } };
+  h.root.traverse((o) => {
+    if (!o.isMesh) return;
+    const m = o.material.clone();
+    m.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, u);
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec3 vDisP;")
+        .replace("#include <project_vertex>", "#include <project_vertex>\nvDisP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", `#include <common>
+          varying vec3 vDisP; uniform float uDis; uniform float uInv; float disEdge;
+          float dh(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+          float dn(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(mix(dh(i), dh(i + vec3(1,0,0)), f.x), mix(dh(i + vec3(0,1,0)), dh(i + vec3(1,1,0)), f.x), f.y),
+                       mix(mix(dh(i + vec3(0,0,1)), dh(i + vec3(1,0,1)), f.x), mix(dh(i + vec3(0,1,1)), dh(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
+        .replace("#include <clipping_planes_fragment>", `#include <clipping_planes_fragment>
+          float dN = 0.65 * dn(vDisP * 9.0) + 0.35 * dn(vDisP * 23.0);
+          float dT = uInv > 0.5 ? 1.0 - dN : dN;
+          if (dT < uDis) discard;
+          disEdge = (uDis > 0.001 && uDis < 0.999) ? smoothstep(uDis + 0.05, uDis, dT) : 0.0;`)
+        .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.68, 0.36) * disEdge * 2.5;");
+    };
+    m.customProgramCacheKey = () => "dissolve";
+    o.material = m;
+  });
+  // k: 0 = this figure whole (or, with appear, not yet there), 1 = the reverse
+  return (k) => {
+    u.uDis.value = appear ? 1 - k : k;
+    const shown = appear ? k > 0.001 : k < 0.999;
+    h.root.visible = shown;
+    h.root.traverse((o) => { if (o.isMesh) o.castShadow = appear ? k > 0.5 : k <= 0.5; });
   };
 }

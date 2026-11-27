@@ -8,7 +8,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import { COL, seg, smooth, lerp, clamp, canvasTexture, glowMat } from "./kit.js";
 import { apartment, clinic, drawSharedScreen } from "./rooms.js";
-import { loadHumanAssets, makeHuman } from "./human.js";
+import { loadHumanAssets, makeHuman, makeDissolvable } from "./human.js";
 import { pointsMat, lifeThread, dayBeads, fragments, wearable, dataBody, RINGS, loopRing, LOOP, labStreams, SOURCES, field, PEOPLE } from "./pieces.js";
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -197,7 +197,8 @@ export function createWorld(canvas, labelHost, { lite }) {
       void main(){ vec3 p = position + vec3(sin(uTime*0.05+position.y)*1.5, uTime*0.12, cos(uTime*0.04+position.x)*1.5);
         p = uCam + mod(p - uCam + 20.0, vec3(40.0,20.0,40.0)) - vec3(20.0,10.0,20.0);
         vec4 mv = modelViewMatrix*vec4(p,1.); float fade = smoothstep(22.0, 6.0, -mv.z) * smoothstep(0.5, 2.0, -mv.z);
-        vC = color*fade; gl_PointSize = uSize*uScale/-mv.z; gl_Position = projectionMatrix*mv; }`,
+        float sz = uSize*uScale/-mv.z; float big = max(sz, 2.5);
+        vC = color*fade*(sz*sz)/(big*big); gl_PointSize = big; gl_Position = projectionMatrix*mv; }`,
   });
   const dust = new THREE.Points(dustGeo, dustMat);
   dust.frustumCulled = false;
@@ -350,14 +351,28 @@ export function createWorld(canvas, labelHost, { lite }) {
   }
 
   const M = `${import.meta.env.BASE_URL}models/`;
-  loadHumanAssets({ xbot: `${M}xbot.glb`, adam: `${M}adam.glb` }, `${M}anims.glb`).then(() => {
+  loadHumanAssets({ xbot: `${M}xbot.glb`, adam: `${M}adam.glb`, roth: `${M}roth.glb` }, `${M}anims.glb`).then(() => {
     // Aarav: Mixamo "Adam", coloured in the site's palette rather than photo textures
     const aarav = { kind: "adam", seatLift: Number(new URLSearchParams(location.search).get("lift") ?? 0.045), palette: { skin: 0x9a6b4f, top: 0x6f8f8a, bottom: 0x3b4146, shoes: 0xd8d3c8, hair: 0x1c1a19 } };
     const cupObj = apt.standing.armR.elbow.children.find((c) => c.geometry && c.geometry.type === "CylinderGeometry");
     apt.standing = swap(apt.standing, { ...aarav, pose: "cup" }, apt.group);
     apt.lying = swap(apt.lying, { ...aarav, pose: "lie", speed: 0.35 }, apt.group, V(-3.4, -0.23, -2.38));
     apt.atWindow = swap(apt.atWindow, { ...aarav, pose: "cup", speed: 0.5 }, apt.group);
-    cli.doctor = swap(cli.doctor, { color: COL.coat, joint: 0x9aa3a8, pose: "sit", build: "f" }, cli.group);
+    cli.doctor = swap(cli.doctor, { color: COL.coat, joint: 0x9aa3a8, pose: "sit", build: "f", seatLift: 0.006 }, cli.group);
+    // The doctor stays a faceless mannequin, which is how the clinic feels to Aarav, until chapter 10, when she reads
+    // his timeline and dissolves into a person (Mixamo "Roth"). Both share one dissolve value, so they hand over cleanly.
+    {
+      const real = makeHuman({ kind: "roth", height: 1.66, pose: "sit", seatLift: Number(new URLSearchParams(location.search).get("dlift") ?? 0.012),
+        palette: { skin: 0xc4926f, top: COL.coat, bottom: 0x2f3538, shoes: 0x23262a, hair: 0x221b17 } });
+      real.root.userData.isHuman = true;
+      real.root.position.copy(cli.doctor.root.position);
+      real.root.rotation.copy(cli.doctor.root.rotation);
+      cli.group.add(real.root);
+      humans.push({ h: real, group: cli.group });
+      cli.doctorReal = real;
+      cli.dissolveMannequin = makeDissolvable(cli.doctor);
+      cli.dissolveReal = makeDissolvable(real, true);
+    }
     // Adam's shins are longer than X Bot's: sit him further back in the chair so his knees clear the desk
     cli.patient = swap(cli.patient, { ...aarav, pose: "sit" }, cli.group, V(0.2, 0.006, 0.1));
     if (cupObj) {
@@ -379,7 +394,7 @@ export function createWorld(canvas, labelHost, { lite }) {
   const camPos = camera.position.clone();
   const camLook = V(-40, -0.6, 42);
   const mood = { ...MOODS.hero, bgC: new THREE.Color(MOODS.hero.bg), keyC: new THREE.Color(MOODS.hero.key), keyDir: MOODS.hero.keyDir.clone() };
-  let headCover = 0, textTop = Infinity;
+  let headCover = 0, textTop = Infinity, textBoxes = [];
   let active = 0, prog = 0, size = { w: 1, h: 1 }, mobile = false, time = 0, screenState = "";
 
   let aptMode = "";
@@ -474,8 +489,16 @@ export function createWorld(canvas, labelHost, { lite }) {
     L.gesture("sad_pose", 0.85 * smooth(seg(kUp, 0.6, 1)), 0.5);
     if (apt.draped) apt.draped.userData.relax(smooth(seg(kTurn, 0.1, 0.9)));
     // Ch3: the doctor nods while asking; Aarav shakes his head trying to remember
-    D.gesture("agree", active === 3 ? 0.8 * env(prog, 0.22, 0.26, 0.38, 0.42) : active === 10 ? 0.8 * env(prog, 0.6, 0.64, 0.76, 0.8) : 0,
-      active === 3 ? seg(prog, 0.24, 0.4) : seg(prog, 0.62, 0.78));
+    const nodW = active === 3 ? 0.8 * env(prog, 0.22, 0.26, 0.38, 0.42) : active === 10 ? 0.8 * env(prog, 0.66, 0.7, 0.82, 0.86) : 0;
+    const nodT = active === 3 ? seg(prog, 0.24, 0.4) : seg(prog, 0.68, 0.84);
+    D.gesture("agree", nodW, nodT);
+    // Ch10: as she reads his timeline, the mannequin doctor becomes a person
+    if (cli.doctorReal) {
+      const kReal = active === 10 ? smooth(seg(prog, 0.48, 0.62)) : active > 10 ? 1 : 0;
+      cli.dissolveMannequin(kReal);
+      cli.dissolveReal(kReal);
+      cli.doctorReal.gesture("agree", nodW, nodT);
+    }
     P.gesture("headShake", active === 3 ? 0.9 * env(prog, 0.4, 0.44, 0.56, 0.6) : 0, seg(prog, 0.42, 0.58));
     // Ch12: at the window with chai, he takes a sip
     const kSip = active === 12 ? smooth(env(prog, 0.3, 0.38, 0.5, 0.58)) : 0;
@@ -598,6 +621,19 @@ export function createWorld(canvas, labelHost, { lite }) {
         if (r.width) L.bottom = r.bottom;
         if (L.bottom !== undefined) o *= clamp((textTop - 10 - L.bottom) / 40);
       }
+      if (textBoxes.length && o > 0.01) {
+        // desktop: fade a label out as it comes within 24 px of any story text (title, paragraph, list)
+        const r = L.el.firstChild.getBoundingClientRect();
+        if (r.width) L.rect = { l: r.left, t: r.top, r: r.right, b: r.bottom };
+        if (L.rect) {
+          let gap = Infinity;
+          for (const b of textBoxes) {
+            const dx = Math.max(b.left - L.rect.r, L.rect.l - b.right, 0), dy = Math.max(b.top - L.rect.b, L.rect.t - b.bottom, 0);
+            gap = Math.min(gap, Math.hypot(dx, dy));
+          }
+          o *= clamp(gap / 24);
+        }
+      }
       if (L === zoomLabel) o *= seg(prog, 0.7, 0.85);
       if (L === qLabel) o *= seg(prog, 0.25, 0.4);
       if (L.station === 6 && active === 6) o *= seg(prog, 0.4, 0.6);
@@ -661,6 +697,16 @@ export function createWorld(canvas, labelHost, { lite }) {
   }
   if (new URLSearchParams(location.search).has("debug")) {
     window.__figures = figureReport;
+    window.__renderer = renderer;
+    // switches for measuring what each part of the frame costs (qa/gpu_cost.js)
+    window.__perf = {
+      quality: (q) => { quality = q; resize(); },
+      shadows: (on) => { key.castShadow = on; },
+      bloom: (on) => { bloom.enabled = on; },
+      grade: (on) => { grade.enabled = on; },
+      msaa: (n) => { [composer.renderTarget1, composer.renderTarget2].forEach((t) => { t.samples = n; t.dispose(); }); },
+      state: () => ({ quality, shadows: key.castShadow, bloom: bloom.enabled, grade: grade.enabled, msaa: composer.renderTarget1.samples }),
+    };
     // world positions of every bone of every visible figure, plus camera and quality: used by the jitter test
     window.__bones = () => {
       const out = {};
@@ -678,7 +724,7 @@ export function createWorld(canvas, labelHost, { lite }) {
   return {
     tick,
     resize,
-    setActive(i, p, cover = 0, top = Infinity) { active = i; prog = p; headCover = cover; textTop = top; },
+    setActive(i, p, cover = 0, top = Infinity, boxes = []) { active = i; prog = p; headCover = cover; textTop = top; textBoxes = boxes; },
     rings: body.rings,
     toggleRing(i) { body.rings[i].on = !body.rings[i].on; return body.rings[i].on; },
     snap() { const s = shotNow(); camPos.copy(s.pos); camLook.copy(s.look); },

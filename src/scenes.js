@@ -286,10 +286,10 @@ export function device(stage) {
 /* ---------------- Ch7: layers ---------------- */
 const TRACKS = [
   { id: "move", name: "Movement", src: "band", type: "line", seed: 3, base: 0.55, amp: 0.3 },
-  { id: "pulse", name: "Resting pulse", src: "band, estimated", type: "line", seed: 5, base: 0.5, amp: 0.15 },
+  { id: "pulse", name: "Pulse", src: "band, estimated", type: "line", seed: 5, base: 0.5, amp: 0.15 },
   { id: "sleep", name: "Sleep", src: "band, estimated", type: "bars", seed: 9 },
-  { id: "temp", name: "Skin temperature", src: "band", type: "line", seed: 13, base: 0.5, amp: 0.1 },
-  { id: "felt", name: "How he felt", src: "Aarav", type: "dots", days: [2, 5, 9, 10, 16, 21, 22, 27] },
+  { id: "temp", name: "Daily routine", src: "phone and Aarav", type: "line", seed: 13, base: 0.5, amp: 0.1 },
+  { id: "felt", name: "Mood and stress", src: "Aarav", type: "dots", days: [2, 5, 9, 10, 16, 21, 22, 27] },
   { id: "meds", name: "Medication", src: "Aarav and clinic", type: "step", change: 18 },
   { id: "events", name: "Possible events", src: "band, unconfirmed", type: "events", days: [9, 21] },
   { id: "clinic", name: "Clinic results", src: "clinic", type: "squares", days: [1, 28] },

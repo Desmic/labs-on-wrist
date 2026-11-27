@@ -9,6 +9,16 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <meta property="og:title" content="The life between appointments" />
   <meta property="og:description" content="A doctor sees moments. A person lives everything in between. An affordable wearable and shared health timeline, built carefully and in the open." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://labs-on-wrist.onrender.com/" />
+  <meta property="og:image" content="https://labs-on-wrist.onrender.com/og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Aarav at his window at dusk, a band on his wrist, in a softly lit illustrated room." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="The life between appointments" />
+  <meta name="twitter:description" content="A doctor sees moments. A person lives everything in between. An affordable wearable and shared health timeline, built carefully and in the open." />
+  <meta name="twitter:image" content="https://labs-on-wrist.onrender.com/og.jpg" />
 </head>
 <body data-tone="day">
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -44,7 +54,7 @@
       <dl class="short__grid">
         <div>
           <dt>What we're building</dt>
-          <dd>A low-cost wrist device, a phone app and a timeline that a person can choose to share with their doctor. The device notices movement and pulse; the person adds what they felt; the doctor adds test results and context.</dd>
+          <dd>Affordable wearables, starting with the wrist, a phone app, and a timeline a person can choose to share with their doctor. The wearables pick up signals from the body; the person adds how they felt; the doctor adds test results and context. It's for children and adults, and it looks at brain, body and mind together.</dd>
         </div>
         <div>
           <dt>Why</dt>
@@ -152,8 +162,9 @@
       <div class="chapter__text">
         <header class="chapter__head"><p class="chapter__num">Chapter 7</p>
         <h2 id="ch7-title">The whole person</h2></header>
-        <div class="step"><p class="narration">The human body does not work as a collection of separate parts.</p></div>
-        <div class="step"><p>Sleep affects seizures. Medication affects sleep. Stress shows up in pulse and in mood. So the record is organised around the person over time, not around one organ or one specialist.</p></div>
+        <div class="step"><p class="narration">A person isn't a collection of separate parts.</p></div>
+        <div class="step"><p>Brain, body and mind affect each other, and so do daily life and surroundings. Sleep affects seizures. Medication affects sleep. Stress shows up in pulse and in mood. So the record is organised around the person over time, not around one organ or one specialist.</p></div>
+        <div class="step"><p>It's meant for children as well as adults, so it has to grow with a person, and make sense to a parent, a teenager and a neurologist alike. It should help on ordinary days too, with routines and reminders, not only when something goes wrong.</p></div>
         <div class="step"><p>Some layers come from the band, some from Aarav himself, some from his doctors. Each one keeps track of where it came from and how sure we are about it.</p></div>
         <div class="step"><p>Turn the layers on and off. Gaps are times with no data. There's no single "health score". A number like that would hide more than it shows.</p><div class="ring-toggles" id="ring-toggles" role="group" aria-label="Show or hide layers" hidden></div></div>
       </div>
@@ -168,6 +179,7 @@
         <div class="step"><p>A cheap sensor is only useful if we know how well it agrees with the tests doctors trust. So we compare them side by side, at the same moment.</p></div>
         <div class="step"><p>Pulse from the band against an ECG. Movement events against video-EEG recordings in hospital. Sleep timing against a sleep lab. Each comparison answers one narrow question.</p></div>
         <div class="step"><p>Then we test on people the system has never seen, because a model that only works on the people it learned from isn't useful. What we learn feeds back into the next version of the hardware.</p></div>
+        <div class="step"><p>Checking isn't done once. Occasional hospital-grade tests help tune the system to each person, and show when it has drifted.</p></div>
         <div class="step"><p class="narration">Measure. Compare. Validate. Learn. Repeat.</p></div>
       </div>
     </section>
@@ -242,7 +254,7 @@
 
     <section class="evidence" id="evidence" aria-labelledby="evidence-title">
       <h2 id="evidence-title">What's true today, and what we're testing</h2>
-      <p class="evidence__lede">We separate what is already known from what we hope is true. If you're a clinician or researcher and something here is wrong or out of date, we want to hear it.</p>
+      <p class="evidence__lede">We separate what is already known from what we hope is true. If you're a clinician or researcher and something here is wrong or out of date, <a href="https://github.com/Desmic/labs-on-wrist/issues/new">we want to hear it</a>.</p>
       <div class="evidence__cols">
         <div>
           <h3>Already established by others</h3>
@@ -289,7 +301,7 @@
 
   <footer class="foot">
     <p>Labs on the Wrist. Vision and research direction by Desmic (Kumar Shashank). Aarav is a fictional character and all data shown is synthetic.</p>
-    <p>This site is an early concept. It is not medical advice and describes no approved medical device. <a href="https://github.com/Desmic/labs-on-wrist">Source on GitHub</a></p>
+    <p>This site is an early concept. It is not medical advice and describes no approved medical device. The <a href="https://github.com/Desmic/labs-on-wrist">source is on GitHub</a>, and so is the place to <a href="https://github.com/Desmic/labs-on-wrist/issues/new">send a correction or feedback</a>.</p>
   </footer>
 
   <script type="module" src="/src/main.js"></script>

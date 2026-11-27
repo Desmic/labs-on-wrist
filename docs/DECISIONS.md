@@ -52,6 +52,16 @@ The founder asked for the most ambitious animated, scroll-driven experience curr
 - Seat heights are per character (`seatLift`): Adam needs 4.5 cm more than X Bot; the patient sits 5 cm further back so his knees clear the desk. Checked with the furniture intersection test.
 - Shimmer: the shadow camera now snaps to whole shadow-map texels, and adaptive resolution only climbs back after several fast windows (and never to a level that was just too slow), so resolution no longer pumps.
 
+## D8 — The mannequin as a point of view; content to the vision; sharing (27 Nov 2026)
+
+- The clinician stays a faceless mannequin through chapter 3: that is how the clinic feels to Aarav. In chapter 10, as she reads his shared timeline, she dissolves into a person (Mixamo "Roth"), and only then nods. Both figures share one dissolve value with a warm seam, so each point of space belongs to exactly one of them. Founder's call to keep the mannequin; the swap was agreed as part of the plan.
+- Content checked against the Research Brief v0.1 (Notion): ch7 now names brain, body and mind, daily life and surroundings, children as well as adults, and everyday help, not only alarms; ch8 adds periodic clinical recalibration and drift checks; the short version no longer says the device "notices movement and pulse". Ch7 layers no longer imply a fixed sensor (skin temperature → daily routine).
+- Retargeting now moves hip travel in world space and lowers seated hips along each rig's own "up", so rigs exported by Blender (Z-up parent) and FBX2glTF (Y-up) both work.
+- Animation file trimmed from 691 KB to 397 KB by dropping keyframes that lie on straight lines (full float precision kept; no quantization).
+- Link previews (Open Graph and Twitter tags, `og.jpg`), and a feedback route (GitHub issues) until there is a contact address.
+- `qa/run_all.sh` runs every check in one command with pass/fail thresholds (`qa/motion_check.py`): vibration ≤ 1 mm/frame², pops ≤ 3× neighbours, shimmer ≤ 0.05 % of pixels.
+- Measured on the founder's laptop (Intel UHD integrated graphics, 1920×889, full resolution, live site): 17–31 ms per frame depending on chapter; fixed post-processing cost is about 17 ms. Adaptive resolution takes it from there; per-pass costs are measured with `?debug` `__perf` switches.
+
 ## Owed work (from the master brief)
 
 - Full Phase 0: 20+ reference matrix with live inspection and measurements.

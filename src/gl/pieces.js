@@ -14,7 +14,10 @@ export function pointsMat(size = 0.05, opts = {}) {
     uniforms: { uSize: { value: size }, uScale: { value: 400 }, uOpacity: { value: 1 }, uTime: { value: 0 }, ...(opts.uniforms || {}) },
     vertexShader: opts.vertex || `
       attribute vec3 color; varying vec3 vC; uniform float uSize; uniform float uScale;
-      void main(){ vC = color; vec4 mv = modelViewMatrix*vec4(position,1.); gl_PointSize = uSize*uScale/-mv.z; gl_Position = projectionMatrix*mv; }`,
+      void main(){ vec4 mv = modelViewMatrix*vec4(position,1.);
+        // points under ~2.5 px alias and twinkle as they move: draw them bigger and dimmer instead (same total light)
+        float sz = uSize*uScale/-mv.z; float big = max(sz, 2.5);
+        vC = color * (sz*sz)/(big*big); gl_PointSize = big; gl_Position = projectionMatrix*mv; }`,
     fragmentShader: `varying vec3 vC; uniform float uOpacity;
       void main(){ float d = length(gl_PointCoord-0.5); float a = smoothstep(0.5,0.0,d); gl_FragColor = vec4(vC*a, a*uOpacity); }`,
   });
@@ -259,10 +262,10 @@ export function wearable() {
 /* ---------------- Particle person with data rings (chapter 7) ---------------- */
 export const RINGS = [
   ["Movement", "band", "teal", true],
-  ["Resting pulse", "band", "teal", true],
+  ["Pulse", "band", "teal", true],
   ["Sleep", "band", "teal", true],
-  ["Skin temperature", "band", "teal", true],
-  ["How he felt", "Aarav", "amber", false],
+  ["Daily routine", "phone and Aarav", "teal", true],
+  ["Mood and stress", "Aarav", "amber", false],
   ["Medication", "Aarav and clinic", "amber", false],
   ["Possible events", "band, unconfirmed", "amber", true],
   ["Clinic results", "clinic", "white", false],
@@ -322,10 +325,13 @@ export function dataBody(lite) {
       uniforms: { uSpeed: { value: 0.12 + i * 0.015 }, uR: { value: radius }, uH: { value: h }, uGap: { value: gappy ? 1 : 0 } },
       vertex: `attribute vec3 color; attribute float aAng; varying vec3 vC; uniform float uSize; uniform float uScale; uniform float uTime; uniform float uSpeed; uniform float uR; uniform float uH; uniform float uGap;
         void main(){ float a = aAng + uTime*uSpeed; float m = mod(a, 6.28318);
-          float hole = uGap * step(4.1, m) * step(m, 4.9);
-          vC = color * (1.0 - hole);
+          // a gap in the data: soft-edged, so points fade out and in as the ring turns instead of popping
+          float hole = uGap * smoothstep(4.0, 4.2, m) * (1.0 - smoothstep(4.8, 5.0, m));
           vec3 p = vec3(cos(a)*uR, uH + sin(a*3.0+uTime*0.3)*0.02, sin(a)*uR);
-          vec4 mv = modelViewMatrix*vec4(p,1.); gl_PointSize = uSize*uScale/-mv.z*(1.0-hole); gl_Position = projectionMatrix*mv; }`,
+          vec4 mv = modelViewMatrix*vec4(p,1.);
+          float sz = uSize*uScale/-mv.z; float big = max(sz, 2.5);
+          vC = color * (1.0 - hole) * (sz*sz)/(big*big);
+          gl_PointSize = big; gl_Position = projectionMatrix*mv; }`,
     });
     const pts = new THREE.Points(geo, mat);
     g.add(pts);
@@ -430,8 +436,10 @@ export function labStreams(lite) {
       uniforms: { uA: { value: pos }, uB: { value: mid }, uC: { value: target }, uOn: { value: 0 } },
       vertex: `attribute vec3 color; attribute float aT; varying vec3 vC; uniform float uSize; uniform float uScale; uniform float uTime; uniform vec3 uA; uniform vec3 uB; uniform vec3 uC; uniform float uOn;
         void main(){ float t = fract(aT + uTime*0.18); vec3 p = mix(mix(uA,uB,t), mix(uB,uC,t), t);
-          vC = color * uOn * sin(t*3.14159); vec4 mv = modelViewMatrix*vec4(p,1.);
-          gl_PointSize = uSize*uScale/-mv.z*uOn; gl_Position = projectionMatrix*mv; }`,
+          vec4 mv = modelViewMatrix*vec4(p,1.);
+          float sz = uSize*uScale/-mv.z*uOn; float big = max(sz, 2.5 * step(0.001, uOn));
+          vC = color * uOn * sin(t*3.14159) * (sz*sz)/max(big*big, 1e-6);
+          gl_PointSize = big; gl_Position = projectionMatrix*mv; }`,
     });
     const pts = new THREE.Points(geo, mat);
     pts.frustumCulled = false;

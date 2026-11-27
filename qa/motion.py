@@ -22,7 +22,7 @@ OUT, W, H = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 URL = sys.argv[4] if len(sys.argv) > 4 else "http://localhost:4173/?debug"
 os.makedirs(OUT, exist_ok=True)
 POS = [p.split(":") for p in os.environ.get("POS",
-    "ch1:0.10,ch1:0.35,ch1:0.60,ch2:0.25,ch2:0.50,ch2:0.70,ch3:0.30,ch3:0.50,ch5:0.47,ch10:0.70,ch12:0.44").split(",")]
+    "ch1:0.10,ch1:0.35,ch1:0.60,ch2:0.25,ch2:0.40,ch2:0.50,ch2:0.70,ch3:0.30,ch3:0.50,ch5:0.47,ch7:0.50,ch10:0.40,ch10:0.70,ch12:0.30,ch12:0.44").split(",")]
 SKIP_SHIMMER = os.environ.get("NOSHIMMER") == "1"
 
 def scroll_js(sec, pct):

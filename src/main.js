@@ -244,7 +244,17 @@ async function startGL() {
         if (r.bottom > 0 && r.top < vh && r.height) top = Math.min(top, r.top);
       }
     }
-    world.setActive(cur.station, p, cover, top);
+    // desktop: boxes of the story text on screen, so 3D labels can fade before they touch it
+    const boxes = [];
+    if (!mobile) {
+      if (!cur.el._blocks) cur.el._blocks = [...cur.el.querySelectorAll(".step > *, .flow > p, .chapter__head h2, .chapter__num")];
+      for (const b of cur.el._blocks) {
+        if (parseFloat(b.style.opacity || "1") < 0.05 || parseFloat(b.parentElement.style.opacity || "1") < 0.05) continue;
+        const r = b.getBoundingClientRect();
+        if (r.bottom > 0 && r.top < vh && r.height) boxes.push(r);
+      }
+    }
+    world.setActive(cur.station, p, cover, top, boxes);
     if (debugMode) window.__dbg = { station: cur.station, p, cover, top };
     if (first || snapAlways) { world.snap(); first = false; }
     updateSVG(vh, chapterIdx);

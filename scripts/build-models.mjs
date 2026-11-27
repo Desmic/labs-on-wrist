@@ -1,25 +1,28 @@
 /*
- * Builds the human models in public/models from the Mixamo downloads.
- *   node scripts/build-models.mjs <Xbot.glb> <adam.glb (converted from Mixamo Ch08 FBX)>
- * anims.glb  - X Bot's skeleton + animations only, written WITHOUT compression or quantization.
- *              (quantizing animation rounds small motions, like breathing, into visible 1 cm steps)
- * (xbot.glb, the clinician's mesh, is the earlier meshopt build; its own embedded clips are ignored.)
- * adam.glb   - Adam's meshes, textures stripped (we colour him in code), bones renamed to mixamorig:*,
- *              simplified, geometry compressed with meshopt.
+ * Builds the human models in public/models from Mixamo downloads.
+ *   node scripts/build-models.mjs anims <Xbot.glb> <out/anims.glb>
+ *       X Bot's skeleton + the clips we use, NOT quantized (quantizing rounded the breathing motion into
+ *       visible 1 cm steps and made figures vibrate). Keyframes on straight lines are dropped (resample).
+ *   node scripts/build-models.mjs char <in.glb> <out.glb> [ratio]
+ *       A Mixamo character converted to glTF (FBX2glTF, or Blender's exporter with Draco): textures, eyelashes and
+ *       any stray objects removed (we colour figures per part in code), bones renamed to mixamorig:*, simplified,
+ *       geometry compressed with meshopt.
+ * Used for: Adam (Ch08, Aarav) and Roth (Ch13, the doctor once she becomes a person).
  */
 import { NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
-import { prune, dedup, weld, simplify, meshopt, quantize, reorder } from "@gltf-transform/functions";
+import { prune, dedup, weld, simplify, meshopt, quantize, reorder, resample } from "@gltf-transform/functions";
 import { MeshoptEncoder, MeshoptDecoder, MeshoptSimplifier } from "meshoptimizer";
+import draco3d from "draco3dgltf";
 
 await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready, MeshoptSimplifier.ready]);
-const io = new NodeIO().registerExtensions(ALL_EXTENSIONS)
-  .registerDependencies({ "meshopt.encoder": MeshoptEncoder, "meshopt.decoder": MeshoptDecoder });
-const [xbotPath, adamPath, outDir = "public/models"] = process.argv.slice(2);
+const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+  "meshopt.encoder": MeshoptEncoder, "meshopt.decoder": MeshoptDecoder, "draco3d.decoder": await draco3d.createDecoderModule(),
+});
+const [mode, inPath, outPath, ratioArg] = process.argv.slice(2);
 
-// 1. animations
-{
-  const doc = await io.read(xbotPath);
+if (mode === "anims") {
+  const doc = await io.read(inPath);
   const root = doc.getRoot();
   root.listNodes().forEach((n) => n.getMesh() && n.setMesh(null));
   const KEEP = ["idle", "walk", "agree", "headShake", "sad_pose"];
@@ -30,34 +33,31 @@ const [xbotPath, adamPath, outDir = "public/models"] = process.argv.slice(2);
   }));
   root.listSkins().forEach((s) => s.dispose());
   for (const ext of root.listExtensionsUsed()) ext.dispose();
-  await doc.transform(prune());
-  await io.write(`${outDir}/anims.glb`, doc);
-}
-
-// 2. Adam
-{
-  const doc = await io.read(adamPath);
+  await doc.transform(resample({ tolerance: 1e-4 }), prune());
+  await io.write(outPath, doc);
+} else if (mode === "char") {
+  const doc = await io.read(inPath);
   const root = doc.getRoot();
   root.listNodes().forEach((n) => n.setName(n.getName().replace(/^mixamorig\d*:/, "mixamorig:")));
+  root.listNodes().forEach((n) => { if (n.getMesh() && /Eyelash|Eyeleash|^Cube$/i.test(n.getName())) { n.getMesh().dispose(); n.dispose(); } });
   root.listTextures().forEach((t) => t.dispose());
-  root.listMeshes().forEach((m) => { if (/Eyelash/i.test(m.getName())) m.dispose(); });
   root.listAnimations().forEach((a) => a.dispose());
-  // keep the mesh name on each primitive's material so the site can colour body, hoodie, pants, shoes and hair separately
-  root.listMeshes().forEach((m) => {
-    const mat = doc.createMaterial(m.getName().replace(/^Ch\d+_/, ""));
+  for (const ext of root.listExtensionsUsed()) if (/draco/i.test(ext.extensionName)) ext.dispose();
+  // one material per part, named after the part, so the site can colour skin, clothes, shoes and hair separately
+  root.listNodes().forEach((n) => {
+    const m = n.getMesh(); if (!m) return;
+    const part = n.getName().replace(/^Ch\d+_/, "");
+    m.setName(part);
+    const mat = doc.createMaterial(part).setBaseColorFactor([Math.random(), Math.random(), Math.random(), 1]); // distinct, so dedup can't merge them
     m.listPrimitives().forEach((p) => p.setMaterial(mat));
   });
-  const ratio = Number(process.env.RATIO || 0.45);
   await doc.transform(
-    prune(), dedup(), weld(),
-    simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.0008, lockBorder: true }),
-    reorder({ encoder: MeshoptEncoder }),
-    quantize(),
-    meshopt({ encoder: MeshoptEncoder, level: "medium" }),
-    prune(),
+    prune(), dedup({ propertyTypes: ["Accessor", "Mesh", "Texture"] }), weld(),
+    simplify({ simplifier: MeshoptSimplifier, ratio: Number(ratioArg || 0.45), error: 0.0008, lockBorder: true }),
+    reorder({ encoder: MeshoptEncoder }), quantize(), meshopt({ encoder: MeshoptEncoder, level: "medium" }), prune(),
   );
   let tris = 0;
   root.listMeshes().forEach((m) => m.listPrimitives().forEach((p) => (tris += p.getIndices().getCount() / 3)));
-  console.log("adam tris", tris, root.listMeshes().map((m) => m.getName()));
-  await io.write(`${outDir}/adam.glb`, doc);
+  console.log(outPath, "tris", tris, root.listMeshes().map((m) => m.getName()));
+  await io.write(outPath, doc);
 }
