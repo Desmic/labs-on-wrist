@@ -203,7 +203,7 @@ export function clinic() {
   shaft.position.set(windowCenter.x - 0.2, 1.2, windowCenter.z + 1.2);
   shaft.rotation.x = 0.5;
   g.add(shaft);
-  return { group: g, screen, screenMat, screenTex, mon, shaft };
+  return { group: g, screen, screenMat, screenTex, mon, shaft, doctor, patient };
 }
 
 function drawEmptyScreen(ctx, w, h) {

@@ -213,6 +213,15 @@ a:hover { text-decoration-thickness: 2px; }
 .formula__eq { font-size: 1.25rem; padding: 1rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); overflow-x: auto; white-space: nowrap; }
 .formula var { font-style: italic; }
 
+/* ---------- First experiments ---------- */
+.first { padding: clamp(3rem, 10vh, 7rem) clamp(1.25rem, 5vw, 5rem); border-top: 1px solid var(--rule); }
+.first h2 { font-size: clamp(1.9rem, 1.4rem + 2vw, 3rem); max-width: 22ch; }
+.first__lede { max-width: var(--measure); margin-top: 1.25rem; color: var(--soft); }
+.first__list { list-style: none; padding: 0; margin: 2.5rem 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0 2.5rem; max-width: 76rem; }
+.first__item { padding: 1rem 0 1.25rem; border-top: 2px solid var(--life); }
+.first__item strong { display: block; font-family: var(--sans); font-size: 1rem; margin-bottom: 0.35rem; }
+.first__note { margin-top: 2rem; max-width: 44rem; font-family: var(--sans); font-size: 0.9rem; color: var(--soft); }
+
 /* ---------- Evidence ---------- */
 .evidence, .principles { padding: clamp(3rem, 10vh, 7rem) clamp(1.25rem, 5vw, 5rem); border-top: 1px solid var(--rule); }
 .evidence h2, .principles h2 { font-size: clamp(1.9rem, 1.4rem + 2vw, 3rem); max-width: 22ch; }
@@ -341,6 +350,7 @@ html.gl .flow { max-width: 70rem; }
 html.gl .lab { background: rgba(10, 16, 20, 0.8); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.08); }
 html.gl .formula { background: rgba(5,8,10,0.6); padding: 1rem 1.25rem; border-radius: 10px; }
 
+html.gl .first { border-top: 0; background: linear-gradient(180deg, rgba(5,8,10,0), rgba(5,8,10,0.86) 18vh); padding-top: 24vh; }
 html.gl .evidence, html.gl .principles { border-top: 0; background: rgba(5, 8, 10, 0.86); backdrop-filter: blur(6px); }
 html.gl .foot { background: rgba(5, 8, 10, 0.92); border-top: 0; }
 

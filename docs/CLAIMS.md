@@ -2,7 +2,7 @@
 
 Every external factual claim on the public site. Status: `VERIFIED` (checked against a primary or official source), `PROJECT` (our own plan/vision), `SYNTHETIC` (illustration only).
 
-Verification pass: **26 November 2026**, via web search of primary/official pages.
+Verification pass: **26 November 2026**, re-checked against the Notion research docs on **27 November 2026**, via web search of primary/official pages.
 
 | ID | Claim (as on site) | Status | Source | Notes |
 | --- | --- | --- | --- | --- |
@@ -16,5 +16,7 @@ Verification pass: **26 November 2026**, via web search of primary/official page
 | C08 | Two 20-minute visits in 90 days ≈ 0.03% of time. | PROJECT (arithmetic: 40 / 129,600 min) | | Visit length is illustrative ("might see"). |
 | C09 | Device is at prototype-planning stage; first prototype = motion sensor, SOS, vibration, phone link. | PROJECT | Founding Research Charter v1.0; Research Brief v0.1 (Notion) | |
 | C10 | All lab-experiment values, signals and timelines. | SYNTHETIC | Labelled on site | |
+| C11 | A smartwatch app detected 46 of 47 tonic-clonic seizures in a hospital study of 242 people, about one false alarm every 12 days; ~2.5 days each in specialised units; maker-funded. | VERIFIED (27 Nov 2026) | AAN press release, 27 May 2026 (Neurology Open Access); HealthDay; News-Medical | Inpatient video-EEG units, ages 5+. Industry-funded (EpiWatch Inc.). |
+| C12 | "What we're testing first": four experiments (open-data benchmark, safety picture pilot, watch/phone test bench, sensor ablation). | PROJECT | Experiment docs, 26 Nov 2026 (Claude Docs + Notion) | Deliberately one line each; protocols kept internal. |
 
 **Still needed before wider promotion:** a qualified clinician should read Chapters 2, 3, 10 and 11 and this register.

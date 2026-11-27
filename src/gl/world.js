@@ -8,6 +8,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import { COL, seg, smooth, lerp, clamp, canvasTexture, glowMat } from "./kit.js";
 import { apartment, clinic, drawSharedScreen } from "./rooms.js";
+import { loadHumanAsset, makeHuman } from "./human.js";
 import { pointsMat, lifeThread, dayBeads, fragments, wearable, dataBody, RINGS, loopRing, LOOP, labStreams, SOURCES, field, PEOPLE } from "./pieces.js";
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -267,15 +268,54 @@ export function createWorld(canvas, labelHost, { lite }) {
     13: (p) => T({ pos: APT.clone().add(V(-10, lerp(8, 18, p), 26)), look: APT.clone().add(V(20, 4, -60)), mood: "sunset", apt: "sunset" }),
   };
 
+  /* ---------- rigged people: swap in once the model has loaded ---------- */
+  const humans = [];
+  const boneScale = new THREE.Vector3();
+  function attach(obj, bone, offset) {
+    bone.updateWorldMatrix(true, false);
+    bone.getWorldScale(boneScale);
+    obj.position.copy(offset).divide(boneScale);
+    obj.scale.set(1 / boneScale.x, 1 / boneScale.y, 1 / boneScale.z);
+    bone.add(obj);
+  }
+  function swap(old, opts, group, pos) {
+    const h = makeHuman(opts);
+    h.root.position.copy(pos || old.root.position);
+    h.root.rotation.copy(old.root.rotation);
+    h.root.visible = old.root.visible;
+    group.remove(old.root);
+    group.add(h.root);
+    humans.push({ h, group });
+    return h;
+  }
+  loadHumanAsset(`${import.meta.env.BASE_URL}models/xbot.glb`).then(() => {
+    const aarav = { color: COL.clayWarm, joint: 0x7d7368 };
+    const cupObj = apt.standing.armR.elbow.children.find((c) => c.geometry && c.geometry.type === "CylinderGeometry");
+    apt.standing = swap(apt.standing, { ...aarav, pose: "cup" }, apt.group);
+    apt.lying = swap(apt.lying, { ...aarav, pose: "lie", speed: 0.35 }, apt.group, V(-3.4, 0.44, -2.1));
+    apt.atWindow = swap(apt.atWindow, { ...aarav, pose: "window", speed: 0.5 }, apt.group);
+    cli.doctor = swap(cli.doctor, { color: COL.coat, joint: 0x9aa3a8, pose: "sit", build: "f" }, cli.group);
+    cli.patient = swap(cli.patient, { ...aarav, pose: "sit" }, cli.group);
+    if (cupObj) { cupObj.rotation.set(0, 0, 0); attach(cupObj, apt.standing.hand("R"), V(0, 0.08, 0.05)); }
+    apt.band.rotation.set(Math.PI / 2, 0, 0);
+    attach(apt.band, apt.standing.bones.LeftForeArm, V(0, 0.24, 0));
+    apt.band2.rotation.set(Math.PI / 2, 0, 0);
+    attach(apt.band2, apt.atWindow.bones.LeftForeArm, V(0, 0.24, 0));
+    setApt(aptMode || "day");
+  }).catch((e) => console.warn("people model unavailable, keeping simple figures", e));
+
   /* ---------- state ---------- */
   const camPos = camera.position.clone();
   const camLook = V(-40, -0.6, 42);
   const mood = { ...MOODS.hero, bgC: new THREE.Color(MOODS.hero.bg), keyC: new THREE.Color(MOODS.hero.key), keyDir: MOODS.hero.keyDir.clone() };
+  let headCover = 0;
   let active = 0, prog = 0, size = { w: 1, h: 1 }, mobile = false, time = 0, screenState = "";
   const labState = { chosen: new Set(["motion", "pulse"]) };
   lab.set(labState.chosen);
 
+  let aptMode = "";
   function setApt(modeName) {
+    aptMode = modeName;
     const day = modeName === "day" || modeName === "wear";
     apt.standing.root.visible = day;
     apt.lying.root.visible = modeName === "night";
@@ -325,6 +365,13 @@ export function createWorld(canvas, labelHost, { lite }) {
   }
 
   const tmpC = new THREE.Color();
+  const ptr = { x: 0, y: 0 }, ptrT = { x: 0, y: 0 };
+  const camRight = new THREE.Vector3(), camUp = new THREE.Vector3();
+  window.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;
+    ptrT.x = (e.clientX / window.innerWidth) * 2 - 1;
+    ptrT.y = -((e.clientY / window.innerHeight) * 2 - 1);
+  }, { passive: true });
   function tick(dt, rawDt = dt) {
     time += dt;
     adapt(rawDt);
@@ -335,7 +382,18 @@ export function createWorld(canvas, labelHost, { lite }) {
     const am = 1 - Math.exp(-dt * 1.8);
     camPos.lerp(shot.pos, a);
     camLook.lerp(shot.look, a);
+    // handheld feel: a slow drift plus a little parallax from the pointer (desktop only)
+    ptr.x = lerp(ptr.x, ptrT.x, 1 - Math.exp(-dt * 2));
+    ptr.y = lerp(ptr.y, ptrT.y, 1 - Math.exp(-dt * 2));
+    const dist = camPos.distanceTo(camLook);
+    const amp = Math.min(1, dist / 12) * (mobile ? 0.5 : 1);
     camera.position.copy(camPos);
+    camera.lookAt(camLook);
+    camRight.setFromMatrixColumn(camera.matrixWorld, 0);
+    camUp.setFromMatrixColumn(camera.matrixWorld, 1);
+    camera.position
+      .addScaledVector(camRight, (ptr.x * 0.35 + Math.sin(time * 0.21) * 0.08) * amp)
+      .addScaledVector(camUp, (ptr.y * 0.22 + Math.sin(time * 0.17 + 1.3) * 0.06) * amp);
     camera.lookAt(camLook);
 
     mood.bgC.lerp(tmpC.set(m.bg), am);
@@ -369,6 +427,7 @@ export function createWorld(canvas, labelHost, { lite }) {
 
     gated.forEach(([o, st]) => { o.visible = st.some((x) => Math.abs(x - active) <= 1); });
     // per-set animation
+    humans.forEach(({ h, group }) => { if (group.visible && h.root.visible) h.update(dt); });
     apt.ring.rotation.z = time * 0.3;
     apt.q.position.y = 1.55 + Math.sin(time * 0.8) * 0.04;
     frag.update(active === 4 ? prog : active > 4 ? 1 : 0, time);
@@ -395,6 +454,7 @@ export function createWorld(canvas, labelHost, { lite }) {
 
     labelList.forEach((L) => {
       let o = L.station === active ? L.show : 0;
+      if (active !== 0 && headCover > 0) o *= 1 - headCover; // keep labels off chapter titles
       if (L === zoomLabel) o *= seg(prog, 0.7, 0.85);
       if (L === qLabel) o *= seg(prog, 0.25, 0.4);
       if (L.station === 6 && active === 6) o *= seg(prog, 0.4, 0.6);
@@ -414,7 +474,7 @@ export function createWorld(canvas, labelHost, { lite }) {
   return {
     tick,
     resize,
-    setActive(i, p) { active = i; prog = p; },
+    setActive(i, p, cover = 0) { active = i; prog = p; headCover = cover; },
     setLab(chosen) { labState.chosen = new Set(chosen); lab.set(labState.chosen); },
     rings: body.rings,
     toggleRing(i) { body.rings[i].on = !body.rings[i].on; return body.rings[i].on; },

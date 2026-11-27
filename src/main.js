@@ -40,6 +40,7 @@ const sections = [
   { el: document.querySelector(".hero"), station: 0 },
   { el: document.getElementById("short"), station: 0 },
   ...chapterEls.map((el, i) => ({ el, station: i + 1 })),
+  { el: document.getElementById("first"), station: 13 },
   { el: document.getElementById("evidence"), station: 13 },
   { el: document.querySelector(".principles"), station: 13 },
   { el: document.querySelector(".foot"), station: 13 },
@@ -175,19 +176,48 @@ async function startGL() {
   }));
 
   /* text choreography */
-  const heroTitle = new SplitText("#hero-title", { type: "words,lines", mask: "lines" });
-  gsap.from(heroTitle.lines, { yPercent: 110, duration: 1.6, ease: "expo.out", stagger: 0.12, delay: 0.3 });
+  // Line masks clip overflow, so give each mask room below the baseline for descenders (p, g, y)
+  // and a little above for accents, then cancel that room with negative margins so layout is unchanged.
+  const roomy = (split) => split.masks.forEach((m) => {
+    m.style.paddingBottom = "0.2em"; m.style.marginBottom = "-0.2em";
+    m.style.paddingTop = "0.06em"; m.style.marginTop = "-0.06em";
+  });
+  const heroTitle = new SplitText("#hero-title", { type: "words,lines", mask: "lines", linesClass: "sline" });
+  roomy(heroTitle);
+  gsap.from(heroTitle.lines, { yPercent: 130, duration: 1.6, ease: "expo.out", stagger: 0.12, delay: 0.3 });
   gsap.from(".hero__lede, .hero__actions", { opacity: 0, y: 24, duration: 1.4, ease: "power3.out", stagger: 0.15, delay: 1.0 });
 
   document.querySelectorAll(".chapter__head").forEach((head) => {
     const h2 = head.querySelector("h2");
-    const split = new SplitText(h2, { type: "words,lines", mask: "lines" });
+    const split = new SplitText(h2, { type: "words,lines", mask: "lines", linesClass: "sline" });
+    roomy(split);
     const tl = gsap.timeline({ scrollTrigger: { trigger: head, start: "top 78%", toggleActions: "play none none reverse" } });
     tl.from(head.querySelector(".chapter__num"), { opacity: 0, y: 14, duration: 0.8, ease: "power2.out" })
-      .from(split.lines, { yPercent: 115, duration: 1.3, ease: "expo.out", stagger: 0.1 }, "-=0.5");
+      .from(split.lines, { yPercent: 130, duration: 1.3, ease: "expo.out", stagger: 0.1 }, "-=0.5");
+    // title drifts up and softens as the scene takes over
+    gsap.to(h2, { yPercent: -30, opacity: 0.25, ease: "none", scrollTrigger: { trigger: head, start: "center 40%", end: "bottom top", scrub: true } });
   });
-  gsap.utils.toArray(".step, .short__grid > div, .claims li, .principles li, .lab, .formula, .flow > p").forEach((el) => {
-    gsap.from(el, { opacity: 0, y: 40, duration: 1.1, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 88%", toggleActions: "play none none reverse" } });
+
+  // Narration lines: words light up as you read, tied to scroll position (reversible).
+  document.querySelectorAll(".narration, .closing p").forEach((el) => {
+    const split = new SplitText(el, { type: "words" });
+    gsap.fromTo(split.words, { opacity: 0.14 }, {
+      opacity: 1, ease: "none", stagger: 0.08,
+      scrollTrigger: { trigger: el, start: "top 82%", end: "top 42%", scrub: 0.6 },
+    });
+  });
+
+  // Reading focus: body text is bright near the middle of the screen and dims at the edges.
+  // No movement, so it never fights the camera.
+  gsap.utils.toArray(".step").forEach((el) => {
+    if (el.querySelector(".narration, .closing")) return;
+    gsap.timeline({ scrollTrigger: { trigger: el, start: "top bottom", end: "bottom top", scrub: true } })
+      .fromTo(el, { opacity: 0.12 }, { opacity: 1, ease: "power1.out", duration: 0.3 })
+      .to(el, { opacity: 1, duration: 0.4 })
+      .to(el, { opacity: 0.12, ease: "power1.in", duration: 0.3 });
+  });
+  gsap.utils.toArray(".short__grid > div, .claims li, .principles li, .lab, .formula, .flow > p:not(.narration), .first__item").forEach((el) => {
+    gsap.from(el, { opacity: 0, y: 24, duration: 1.0, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 90%", toggleActions: "play none none reverse" } });
   });
 
   /* panel chapter (10): data panel fades in after the camera reaches the screen */
@@ -200,7 +230,14 @@ async function startGL() {
   gsap.ticker.add((time, deltaMs) => {
     lenis.raf(time * 1000);
     const { cur, p, chapterIdx, vh } = readScroll();
-    world.setActive(cur.station, p);
+    // how much of the screen a chapter title currently occupies (0..1)
+    let cover = 0;
+    const head = cur.el.querySelector && cur.el.querySelector(".chapter__head");
+    if (head) {
+      const r = head.getBoundingClientRect();
+      cover = clamp(1 - Math.abs((r.top + r.height / 2) - vh / 2) / (vh * 0.6));
+    }
+    world.setActive(cur.station, p, cover);
     if (first || snapAlways) { world.snap(); first = false; }
     updateSVG(vh, chapterIdx);
     if (panelStage) {
